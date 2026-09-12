@@ -1,0 +1,16 @@
+.DS_Store
+.idea/
+.gradle/
+.kotlin/
+local.properties
+build/
+**/build/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+dist/
+
+# Heruntergeladene Sprachmodelle zum Ausprobieren, gehören nicht ins Repo
+*.tar.bz2
+*.onnx

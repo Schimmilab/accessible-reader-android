@@ -1,0 +1,435 @@
+package de.schimmilab.accessiblereader
+
+import android.app.Application
+import android.content.ComponentName
+import android.net.Uri
+import android.os.Build
+import android.os.Bundle
+import android.view.accessibility.AccessibilityManager
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
+import androidx.media3.common.PlaybackException
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
+import de.schimmilab.accessiblereader.core.*
+import de.schimmilab.accessiblereader.data.DocumentStore
+import de.schimmilab.accessiblereader.playback.ReaderPlaybackService
+import de.schimmilab.accessiblereader.speech.*
+import de.schimmilab.accessiblereader.speech.SpeechProbe
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+
+data class ReaderState(
+    val document: ReaderDocument = demoDocument(), val chapter: Int = 0,
+    val busy: Boolean = false, val playing: Boolean = false, val connected: Boolean = false,
+    // Unlike isPlaying, this stays true while TalkBack temporarily owns audio focus.
+    val playbackRequested: Boolean = false,
+    // True while later audio parts of the current chapter are still being synthesized in the background.
+    val preparing: Boolean = false,
+    val positionMs: Long = 0, val durationMs: Long = 0, val speed: Float = 1f,
+    val voices: List<ReaderVoice> = emptyList(), val voiceId: String = "",
+    val engines: Map<String, String> = emptyMap(), val engineId: String = "",
+    val status: String = "Bereit für deine erste Leseprobe.", val error: String? = null,
+    val showContents: Boolean = false, val showSettings: Boolean = false,
+    val cacheBytes: Long = 0, val listening: Boolean = false,
+    val report: String = "",
+    // Separate from busy: a running diagnosis must not lock the screen someone is waiting in front of.
+    val diagnosing: Boolean = false,
+    val library: List<LibraryItem> = emptyList(), val showLibrary: Boolean = false, val pendingRemoval: String? = null,
+)
+
+class ReaderViewModel(application: Application) : AndroidViewModel(application) {
+    companion object {
+        /** Minimum audio buffered ahead of the start position before playback begins, so the chapter intro cannot drain into silence. */
+        const val MIN_LEAD_MS = 12_000L
+        /** Upper bound for generated audio kept on the device; oldest is dropped first. */
+        const val CACHE_BUDGET_BYTES = 500L * 1024 * 1024
+    }
+    private val prefs = application.getSharedPreferences("reader", Application.MODE_PRIVATE)
+    private val accessibility = application.getSystemService(Application.ACCESSIBILITY_SERVICE) as AccessibilityManager
+    private val store = DocumentStore(application)
+    // Replaced when the user picks another speech engine, so it cannot be a val.
+    private var speech = AndroidSpeechProvider(application, application.getSharedPreferences("reader", Application.MODE_PRIVATE).getString("engine", "").orEmpty())
+    private val mutable = MutableStateFlow(ReaderState(speed = prefs.getFloat("speed", 1f)))
+    val state = mutable.asStateFlow()
+    private var player: MediaController? = null
+    private var work: Job? = null
+    private var preparedKey: String? = null
+    private var durations: List<Long> = emptyList()
+    private val controllerFuture = MediaController.Builder(application, SessionToken(application, ComponentName(application, ReaderPlaybackService::class.java)))
+        .setListener(object : MediaController.Listener {
+            // Media keys and notification buttons: the service turns next/previous into chapter requests.
+            override fun onCustomCommand(controller: MediaController, command: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
+                when (command.customAction) {
+                    ReaderPlaybackService.COMMAND_NEXT_CHAPTER -> chapter(state.value.chapter + 1)
+                    ReaderPlaybackService.COMMAND_PREVIOUS_CHAPTER -> chapter(state.value.chapter - 1)
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            }
+        }).buildAsync()
+
+    init {
+        // A fresh view model means nothing is being prepared; clears a flag left behind by a killed process.
+        prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, false).apply()
+        controllerFuture.addListener({
+            runCatching { controllerFuture.get() }.onSuccess { controller ->
+                player = controller
+                controller.addListener(object : Player.Listener {
+                    override fun onPlayerError(error: PlaybackException) { showError("Das Audio konnte nicht abgespielt werden. Bitte erneut starten.") }
+                    override fun onEvents(player: Player, events: Player.Events) { syncPlayer() }
+                })
+                mutable.update { it.copy(connected = true) }
+            }.onFailure { showError("Der Audioplayer konnte nicht verbunden werden.") }
+        }, ContextCompat.getMainExecutor(application))
+        viewModelScope.launch {
+            val lastId = prefs.getString("document", null)
+            val document = withContext(Dispatchers.IO) { lastId?.let(store::load) } ?: demoDocument()
+            mutable.update { it.copy(document = document, chapter = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices)) }
+            refreshVoices()
+            while (isActive) {
+                syncPlayer()
+                delay(500)
+            }
+        }
+    }
+
+    private fun syncPlayer() {
+        val p = player ?: return
+        val extra = p.currentMediaItem?.mediaMetadata?.extras
+        if (extra?.getString("document") == state.value.document.id) {
+            durations = (0 until p.mediaItemCount).map { p.getMediaItemAt(it).mediaMetadata.extras?.getLong("duration") ?: 0 }
+            val chapter = extra.getInt("chapter")
+            val voice = extra.getString("voice").orEmpty()
+            preparedKey = "${state.value.document.id}:$chapter:$voice"
+            mutable.update { it.copy(chapter = chapter, playing = p.isPlaying, playbackRequested = p.wantsPlayback(),
+                positionMs = AudioTimeline.absolute(durations, p.currentMediaItemIndex, p.currentPosition), durationMs = durations.sum()) }
+            // A finished chapter continues with the next one; the last chapter stays at its end and offers a restart.
+            val s = state.value
+            if (p.playbackState == Player.STATE_ENDED && p.playWhenReady && !s.preparing && !s.busy && chapter + 1 in s.document.chapters.indices) {
+                chapter(chapter + 1, announce = false)
+                play(quiet = true)
+            }
+        } else mutable.update { it.copy(playing = false, playbackRequested = false) }
+    }
+
+    // Running out of prepared parts while more are coming is not a chapter end.
+    private fun Player.wantsPlayback(): Boolean = playWhenReady && playbackState != Player.STATE_IDLE &&
+        (playbackState != Player.STATE_ENDED || state.value.preparing)
+
+    fun refreshVoices() { viewModelScope.launch {
+        try {
+            val voices = speech.voices()
+            val engines = speech.engines()
+            val chosen = prefs.getString("engine", "").orEmpty().ifBlank { speech.defaultEngineName() }
+            mutable.update { current -> current.copy(voices = voices, engines = engines, engineId = chosen,
+                voiceId = voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id ?: voices.firstOrNull()?.id.orEmpty(),
+                status = if (voices.isEmpty())
+                    "Diese Sprachausgabe meldet keine deutsche Stimme. Bitte in Stimme und Einstellungen eine andere Sprachausgabe wählen."
+                else current.status) }
+        } catch (e: Exception) { if (e is CancellationException) throw e; showError(e.message ?: "Stimmen konnten nicht geladen werden.") }
+    } }
+
+    /** Switches the speech engine itself. Needed because the system default may report no voices at all. */
+    fun engine(packageName: String) {
+        if (state.value.busy || packageName == state.value.engineId) return
+        stopPreparation()
+        pause(); player?.stop(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        prefs.edit().putString("engine", packageName).remove("voice").apply()
+        speech.close()
+        speech = AndroidSpeechProvider(getApplication(), packageName)
+        mutable.update { it.copy(engineId = packageName, voices = emptyList(), voiceId = "",
+            durationMs = 0, positionMs = 0, status = "Sprachausgabe gewechselt. Stimmen werden geladen.") }
+        refreshVoices()
+    }
+
+    fun importPdf(uri: Uri) {
+        if (state.value.busy) return
+        player?.pause()
+        work?.cancel()
+        work = viewModelScope.launch {
+            mutable.update { it.copy(busy = true, preparing = false, error = null, status = "Öffne PDF …") }
+            try {
+                val document = store.importPdf(uri) { message -> mutable.update { it.copy(status = message) } }
+                open(document)
+                refreshLibrary()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                showError(if (e.javaClass.simpleName.contains("Password")) "Dieses PDF ist passwortgeschützt. Bitte eine entsperrte Kopie verwenden." else e.message ?: "PDF konnte nicht gelesen werden.")
+            } finally { mutable.update { it.copy(busy = false) } }
+        }
+    }
+
+    fun demo() { if (!state.value.busy) { stopPreparation(); open(demoDocument()) } }
+    /** Replaces the current document. Callers outside the import job must cancel a running preparation first. */
+    fun open(document: ReaderDocument) {
+        player?.stop(); player?.clearMediaItems()
+        preparedKey = null; durations = emptyList()
+        prefs.edit().putString("document", document.id).apply()
+        mutable.update { it.copy(document = document, chapter = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices),
+            durationMs = 0, positionMs = 0, error = null, status = "${document.title} geöffnet. ${document.chapters.size} Abschnitte.") }
+    }
+
+    fun togglePlayback() { if (player?.wantsPlayback() == true) pause() else play() }
+    fun pause() { player?.pause(); mutable.update { it.copy(playing = false, playbackRequested = false, status = "Pausiert.") } }
+    /** [quiet] skips status updates so an automatic chapter change causes no TalkBack announcement. */
+    fun play(quiet: Boolean = false) {
+        val s = state.value
+        if (s.busy || s.listening) return
+        val p = player ?: return showError("Der Audioplayer verbindet sich noch.")
+        if (s.voiceId.isBlank()) { settings(true); return showError("Bitte eine deutsche Offline-Stimme installieren und anschließend Stimmen neu laden.") }
+        val chapter = s.document.chapters[s.chapter]
+        if (chapter.text.isBlank()) return showError("Dieser Abschnitt enthält keinen lesbaren Text. Bitte einen anderen Abschnitt wählen.")
+        val key = "${s.document.id}:${s.chapter}:${s.voiceId}"
+        if (preparedKey == key && p.mediaItemCount > 0) {
+            if (p.playbackState == Player.STATE_ENDED) p.seekTo(0, 0)
+            p.prepare(); p.play(); syncPlayer(); mutable.update { it.copy(status = "Wiedergabe läuft.") }; return
+        }
+        work?.cancel()
+        work = viewModelScope.launch {
+            prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, true).apply()
+            mutable.update { it.copy(busy = true, preparing = true, error = null) }
+            var started = false
+            try {
+                p.stop(); p.clearMediaItems(); preparedKey = null; durations = emptyList()
+                // Makes room instead of refusing: a long book outgrows any budget, and stopping mid-book is worse
+                // than synthesizing an old chapter again should the listener return to it.
+                withContext(Dispatchers.IO) { speech.trimCache(CACHE_BUDGET_BYTES) }
+                // Part 0 is always the spoken chapter intro, so saved item indexes stay stable.
+                val texts = listOf(ChapterAnnouncement.text(s.chapter, s.document.chapters.size, chapter.title)) + TextChunks.split(chapter.text)
+                val resume = prefs.getInt("${s.document.id}.chapter", 0) == s.chapter &&
+                    prefs.getString("${s.document.id}.voice", "") == s.voiceId && !prefs.getBoolean("${s.document.id}.finished", false)
+                val startItem = if (resume) prefs.getInt("${s.document.id}.item", 0).coerceIn(texts.indices) else 0
+                // Parts up to the resume point are needed before playback starts; everything after is appended while listening.
+                val items = mutableListOf<MediaItem>()
+                var leadMs = 0L        // audio buffered from the start position; playback waits until it clears MIN_LEAD_MS
+                var startOffset = 0L
+                texts.forEachIndexed { i, text ->
+                    if (!started && !quiet) mutable.update { it.copy(status = "Bereite Audio vor: Teil ${i + 1} von ${texts.size}.") }
+                    val part = speech.synthesize(text, s.voiceId)
+                    ensureActive()
+                    val extra = Bundle().apply {
+                        putString("document", s.document.id); putInt("chapter", s.chapter); putString("voice", s.voiceId)
+                        putLong("duration", part.durationMs)
+                    }
+                    val item = MediaItem.Builder().setMediaId("$key:$i").setUri(Uri.fromFile(part.file))
+                        .setMediaMetadata(MediaMetadata.Builder().setTitle(chapter.title).setArtist(s.document.title).setExtras(extra).build()).build()
+                    if (started) {
+                        p.addMediaItem(item)
+                        // The player ran out of parts before this one arrived; continue unless the user paused.
+                        if (p.playWhenReady && p.playbackState == Player.STATE_ENDED) { p.seekTo(p.mediaItemCount - 1, 0); p.prepare(); p.play() }
+                        syncPlayer()
+                    } else {
+                        items += item
+                        if (i == startItem) startOffset = if (resume) prefs.getLong("${s.document.id}.offset", 0).coerceIn(0, part.durationMs) else 0
+                        if (i >= startItem) leadMs += part.durationMs
+                        // Start only once enough audio lies ahead, so the short chapter intro cannot drain before the first text part is ready.
+                        if (i >= startItem && (leadMs - startOffset >= MIN_LEAD_MS || i == texts.lastIndex)) {
+                            p.setMediaItems(items, startItem, startOffset)
+                            p.setPlaybackSpeed(state.value.speed); p.prepare(); p.play()
+                            preparedKey = key; started = true
+                            syncPlayer()
+                            val more = if (texts.size > items.size) " Weitere Teile werden im Hintergrund vorbereitet." else ""
+                            mutable.update { it.copy(busy = false, status = if (quiet) it.status else "${chapter.title}. Wiedergabe läuft.$more") }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (started) preparedKey = null // next Play retries the missing parts from the saved position
+                showError(if (started) "Das restliche Audio dieses Kapitels konnte nicht vorbereitet werden. Bitte Vorlesen erneut starten." else e.message ?: "Audio konnte nicht vorbereitet werden.")
+            } finally {
+                prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, false).apply()
+                mutable.update { it.copy(busy = false, preparing = false, cacheBytes = speech.cacheSize()) }
+            }
+        }
+    }
+
+    private fun stopPreparation() {
+        work?.cancel()
+        prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, false).apply()
+        mutable.update { it.copy(busy = false, preparing = false) }
+    }
+    fun cancelWork() { stopPreparation(); mutable.update { it.copy(status = "Vorgang abgebrochen.") } }
+    /** [announce] false keeps the live-region status untouched, e.g. when a chapter continues automatically. */
+    fun chapter(index: Int, announce: Boolean = true) {
+        if (state.value.busy || index !in state.value.document.chapters.indices) return
+        val wasPlaying = player?.wantsPlayback() == true
+        stopPreparation()
+        player?.stop(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        val id = state.value.document.id
+        prefs.edit().putInt("$id.chapter", index).putInt("$id.item", 0).putLong("$id.offset", 0).putBoolean("$id.finished", false).apply()
+        mutable.update { it.copy(chapter = index, positionMs = 0, durationMs = 0, playing = false, playbackRequested = false, showContents = false,
+            status = if (announce) "${it.document.chapters[index].title} ausgewählt." else it.status) }
+        if (wasPlaying) play()
+    }
+    fun seek(seconds: Int) {
+        val p = player ?: return
+        if (durations.isEmpty() || state.value.busy) return showError("Bitte zuerst das Vorlesen starten, damit Audio vorbereitet wird.")
+        val absolute = AudioTimeline.absolute(durations, p.currentMediaItemIndex, p.currentPosition)
+        val target = AudioTimeline.locate(durations, absolute + seconds * 1000L)
+        p.seekTo(target.item, target.offsetMs)
+        syncPlayer()
+        val end = if (state.value.preparing) "das bereits vorbereitete Audio" else "das Kapitelende"
+        mutable.update { it.copy(status = if (seconds < 0) "${-seconds} Sekunden zurück, begrenzt auf den Kapitelanfang." else "$seconds Sekunden vor, begrenzt auf $end.") }
+    }
+    fun speed(value: Float) {
+        val speed = value.coerceIn(0.5f, 2f)
+        player?.setPlaybackSpeed(speed)
+        prefs.edit().putFloat("speed", speed).apply()
+        mutable.update { it.copy(speed = speed) }
+    }
+    fun voice(id: String) {
+        if (state.value.busy) return
+        stopPreparation()
+        pause(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        prefs.edit().putString("voice", id).apply()
+        mutable.update { it.copy(voiceId = id, durationMs = 0, positionMs = 0, status = "Stimme gewechselt. Dieses Kapitel beginnt beim nächsten Start von vorne.") }
+    }
+    fun library(open: Boolean) {
+        mutable.update { it.copy(showLibrary = open) }
+        if (open) refreshLibrary()
+    }
+
+    private fun refreshLibrary() {
+        viewModelScope.launch {
+            val entries = runCatching { store.library() }.getOrDefault(emptyList())
+            val current = state.value.document.id
+            mutable.update { s ->
+                s.copy(library = entries.map { entry ->
+                    LibraryItem(entry.id, entry.title,
+                        libraryLabel(entry, prefs.getInt("${entry.id}.chapter", 0), prefs.contains("${entry.id}.voice")),
+                        entry.id == current)
+                })
+            }
+        }
+    }
+
+    fun openFromLibrary(id: String) {
+        if (state.value.busy) return
+        viewModelScope.launch {
+            val document = withContext(Dispatchers.IO) { store.load(id) }
+            if (document == null) {
+                showError("Dieses Dokument konnte nicht geladen werden. Es wurde aus der Bibliothek entfernt.")
+                withContext(Dispatchers.IO) { store.remove(id) }
+                refreshLibrary()
+                return@launch
+            }
+            stopPreparation()
+            open(document)
+            mutable.update { it.copy(showLibrary = false) }
+        }
+    }
+
+    /** Removal is destructive and unreachable by accident: the screen asks first. */
+    fun askRemoval(id: String?) { mutable.update { it.copy(pendingRemoval = id) } }
+
+    fun confirmRemoval() {
+        val id = state.value.pendingRemoval ?: return
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { store.remove(id) }
+            prefs.edit().remove("$id.chapter").remove("$id.item").remove("$id.offset")
+                .remove("$id.voice").remove("$id.finished").apply()
+            if (state.value.document.id == id) { stopPreparation(); open(demoDocument()) }
+            mutable.update { it.copy(pendingRemoval = null, status = "Dokument aus der Bibliothek entfernt.") }
+            refreshLibrary()
+        }
+    }
+
+    fun contents(open: Boolean) { mutable.update { it.copy(showContents = open) } }
+    fun settings(open: Boolean) { mutable.update { it.copy(showSettings = open, cacheBytes = speech.cacheSize()) } }
+    fun clearCache() {
+        if (state.value.busy) return
+        stopPreparation()
+        pause(); player?.stop(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        speech.clearCache(); mutable.update { it.copy(cacheBytes = 0, durationMs = 0, status = "Erzeugtes Audio gelöscht. Deine PDFs und Hörpositionen bleiben gespeichert.") }
+    }
+    fun positionText(): String {
+        val s = state.value
+        return "${s.document.chapters[s.chapter].title}, Abschnitt ${s.chapter + 1} von ${s.document.chapters.size}. ${s.positionMs / 60000} Minuten und ${(s.positionMs / 1000) % 60} Sekunden."
+    }
+    /** With TalkBack running the live region already speaks the status; the book voice would double every announcement. */
+    private fun screenReaderActive(): Boolean =
+        accessibility.isEnabled && accessibility.isTouchExplorationEnabled
+
+    fun announcePosition() {
+        pause()
+        val text = positionText()
+        mutable.update { it.copy(status = text) }
+        if (!screenReaderActive()) speech.say(text, state.value.voiceId)
+    }
+
+    /**
+     * Asks the device what its speech engine can do. Built because the target phone is a Samsung with the Vocalizer
+     * engine, where file synthesis cannot be assumed, and no such device is available here.
+     */
+    fun runDiagnostics() {
+        if (state.value.diagnosing) return
+        viewModelScope.launch {
+            mutable.update { it.copy(diagnosing = true, error = null, report = "", status = "Prüfung beginnt …") }
+            try {
+                val application = getApplication<Application>()
+                val default = speech.defaultEngineName()
+                // Every installed engine is probed, not just the default: on the target device the default reports nothing.
+                val installed = speech.engines().entries.sortedBy { it.value }
+                val engines = installed.mapIndexed { index, (packageName, label) ->
+                    mutable.update { it.copy(status = "Prüfe ${index + 1} von ${installed.size}: $label …") }
+                    SpeechProbe.probe(application, packageName, label, packageName == default)
+                }
+                val version = runCatching {
+                    application.packageManager.getPackageInfo(application.packageName, 0).versionName
+                }.getOrNull().orEmpty()
+                val report = SpeechReport(
+                    appVersion = version, device = "${Build.MANUFACTURER} ${Build.MODEL}",
+                    androidRelease = Build.VERSION.RELEASE, sdk = Build.VERSION.SDK_INT,
+                    screenReader = screenReaderActive(), defaultEngine = default, engines = engines,
+                )
+                mutable.update { it.copy(report = report.format(), status = "Prüfung abgeschlossen. Der Bericht steht unter der Taste.") }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                showError(e.message ?: "Die Prüfung der Sprachausgabe ist fehlgeschlagen.")
+            } finally { mutable.update { it.copy(diagnosing = false, cacheBytes = speech.cacheSize()) } }
+        }
+    }
+
+    /** Plays the same sample in the chosen voice, so voices can be told apart by ear instead of by label. */
+    fun previewVoice(id: String) {
+        if (state.value.busy) return
+        if (state.value.playbackRequested) pause()
+        speech.say(VOICE_SAMPLE, id)
+    }
+
+    fun readContents() {
+        pause()
+        // Always the book voice: hearing the list as continuous speech is the whole point of this button.
+        speech.say(state.value.document.chapters.take(20).mapIndexed { i, c -> "Abschnitt ${i + 1}: ${c.title}." }.joinToString(" ") + if (state.value.document.chapters.size > 20) " Weitere Abschnitte stehen im Inhaltsverzeichnis." else "", state.value.voiceId)
+    }
+    fun listening(active: Boolean) { if (active) pause(); mutable.update { it.copy(listening = active, status = if (active) "Ich höre zu. Sage einen Befehl." else "Spracheingabe beendet.") } }
+    fun command(text: String) {
+        mutable.update { it.copy(listening = false) }
+        when (val command = CommandParser.parse(text)) {
+            ReaderCommand.Play -> play()
+            ReaderCommand.Pause -> pause()
+            ReaderCommand.Next -> chapter(state.value.chapter + 1)
+            ReaderCommand.Previous -> chapter(state.value.chapter - 1)
+            ReaderCommand.Contents -> contents(true)
+            ReaderCommand.Library -> library(true)
+            ReaderCommand.Position -> announcePosition()
+            is ReaderCommand.Seek -> seek(command.seconds)
+            is ReaderCommand.GoTo -> if (command.chapter in 1..state.value.document.chapters.size) chapter(command.chapter - 1) else showError("Diesen Abschnitt gibt es nicht.")
+            null -> showError("Befehl nicht erkannt: $text. Beispiele: Vorlesen, Pause, 30 Sekunden zurück, nächstes Kapitel.")
+        }
+    }
+    fun showError(message: String) { mutable.update { it.copy(error = message, status = message, listening = false) } }
+    fun dismissError() { mutable.update { it.copy(error = null) } }
+    override fun onCleared() { work?.cancel(); speech.close(); MediaController.releaseFuture(controllerFuture); super.onCleared() }
+}
