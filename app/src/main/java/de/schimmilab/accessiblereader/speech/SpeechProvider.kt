@@ -33,6 +33,14 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     companion object {
         /** Stands for "whatever German voice this engine uses by default", for engines that report no voices. */
         const val ENGINE_DEFAULT_VOICE = "engine-default-de"
+
+        /**
+         * How long one piece of text may take. Measured on an emulator: the stock Google voice needs about
+         * 3 milliseconds per character, a local neural voice 30, and up to 115 while it is also speaking an
+         * announcement and audio is playing. 300 leaves room above the worst case that was measured without
+         * making a genuinely stuck engine hang forever.
+         */
+        fun synthesisBudgetMs(characters: Int): Long = maxOf(60_000L, 300L * characters)
     }
 
     override val providerId = "android-local-v1"
@@ -111,7 +119,14 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
             tts.setSpeechRate(1f)
             pending[id] = completion
             check(tts.synthesizeToFile(text, Bundle(), temp, id) == TextToSpeech.SUCCESS) { "Sprachausgabe konnte nicht vorbereitet werden." }
-            withTimeout(90_000) { completion.await() }
+            // A neural voice can need as long as the audio itself, and longer while it is also speaking an
+            // announcement. A flat limit turned that into silence, so the budget follows the length of the text.
+            // withTimeoutOrNull on purpose: withTimeout throws a CancellationException, which every caller has to
+            // treat as "the user cancelled", and a swallowed timeout leaves a listener waiting forever.
+            val budget = synthesisBudgetMs(text.length)
+            withTimeoutOrNull(budget) { completion.await() }
+                ?: error("Diese Stimme hat für diesen Abschnitt länger als ${budget / 1000} Sekunden gebraucht. " +
+                    "Bitte eine andere Stimme wählen oder es noch einmal versuchen.")
             val duration = withContext(Dispatchers.IO) { duration(temp) }
             check(duration > 0 && temp.renameTo(file)) { "Die erzeugte Audiodatei ist unvollständig." }
             SpeechAudio(file, duration)

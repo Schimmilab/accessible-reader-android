@@ -1,6 +1,7 @@
 package de.schimmilab.accessiblereader
 
 import de.schimmilab.accessiblereader.core.*
+import de.schimmilab.accessiblereader.speech.AndroidSpeechProvider
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -98,6 +99,25 @@ class ReaderCoreTest {
         val report = SpeechReport("0.4.0", "x", "16", 36, false, "", emptyList()).format()
         assertTrue(report.contains("Voreingestellte Sprachmaschine: unbekannt"))
         assertTrue(report.contains("Keine Sprachmaschine gefunden."))
+    }
+    @Test fun theFirstPiecesAreShortSoTheFirstSoundArrivesQuickly() {
+        // A local neural voice needs about as long as the audio itself. With one size for every piece a listener
+        // waited over a minute before the first word.
+        val text = "Ein Satz mit ordentlicher Länge, der sich immer wiederholt und dabei Text erzeugt. ".repeat(60)
+        val pieces = TextChunks.splitForPlayback(text)
+        assertTrue("First piece was ${pieces[0].length} characters", pieces[0].length <= 250)
+        assertTrue("Second piece was ${pieces[1].length} characters", pieces[1].length in 251..500)
+        assertTrue("Later pieces should be full size", pieces[3].length > 500)
+        assertEquals("No text may be lost", text.trim(), pieces.joinToString(" "))
+        // A short chapter still produces exactly one piece.
+        assertEquals(listOf("Kurzer Abschnitt."), TextChunks.splitForPlayback("Kurzer Abschnitt."))
+    }
+    @Test fun theSynthesisBudgetFollowsTheLengthOfTheText() {
+        // Measured worst case on an emulator: 115 ms per character while also speaking an announcement.
+        assertEquals(60_000L, AndroidSpeechProvider.synthesisBudgetMs(0))
+        assertEquals(60_000L, AndroidSpeechProvider.synthesisBudgetMs(200))
+        assertEquals(75_000L, AndroidSpeechProvider.synthesisBudgetMs(250))
+        assertEquals(300_000L, AndroidSpeechProvider.synthesisBudgetMs(1000))
     }
     @Test fun cleanupRemovesLineWrapHyphenButPreservesCompound() {
         assertEquals("Vorlesen\nAudio-\nPlayer", TextChunks.clean("Vor-\nlesen\nAudio-\nPlayer"))

@@ -81,11 +81,27 @@ object TextChunks {
     }
 
     // Limit UTF-16 length as required by Android TTS; never split a surrogate pair.
-    fun split(text: String, limit: Int = 1000): List<String> {
-        require(limit >= 4)
+    fun split(text: String, limit: Int = 1000): List<String> = split(text) { limit }
+
+    /**
+     * The sizes used for actual playback. The first pieces are short so the first sound arrives quickly, and
+     * later ones are longer because a speech engine wastes less time per character on them.
+     *
+     * This matters only for slow voices, and it matters a lot. A local neural voice needed 30 seconds for a
+     * 1000-character piece, so a listener waited over a minute in silence before a word came out, and long
+     * pieces ran into the synthesis budget. The stock voices are so far ahead of playback that they never
+     * noticed either way.
+     */
+    fun splitForPlayback(text: String): List<String> = split(text) { index ->
+        when (index) { 0 -> 250; 1 -> 500; else -> 1000 }
+    }
+
+    private inline fun split(text: String, limitAt: (Int) -> Int): List<String> {
         val result = mutableListOf<String>()
         var rest = text.trim()
         while (rest.isNotEmpty()) {
+            val limit = limitAt(result.size)
+            require(limit >= 4)
             var end = minOf(limit, rest.length)
             if (end < rest.length) {
                 val boundary = rest.substring(0, end).lastIndexOfAny(charArrayOf('.', '!', '?', '\n', ' '))

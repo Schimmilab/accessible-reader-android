@@ -207,7 +207,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 // than synthesizing an old chapter again should the listener return to it.
                 withContext(Dispatchers.IO) { speech.trimCache(CACHE_BUDGET_BYTES) }
                 // Part 0 is always the spoken chapter intro, so saved item indexes stay stable.
-                val texts = listOf(ChapterAnnouncement.text(s.chapter, s.document.chapters.size, chapter.title)) + TextChunks.split(chapter.text)
+                val texts = listOf(ChapterAnnouncement.text(s.chapter, s.document.chapters.size, chapter.title)) + TextChunks.splitForPlayback(chapter.text)
                 val resume = prefs.getInt("${s.document.id}.chapter", 0) == s.chapter &&
                     prefs.getString("${s.document.id}.voice", "") == s.voiceId && !prefs.getBoolean("${s.document.id}.finished", false)
                 val startItem = if (resume) prefs.getInt("${s.document.id}.item", 0).coerceIn(texts.indices) else 0
@@ -246,7 +246,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
+                // A timeout arrives as a CancellationException too. Rethrowing it silently was the worst bug this
+                // app had: a slow voice simply stopped, with no sound, no message and nothing to press.
+                if (e is CancellationException && e !is TimeoutCancellationException) throw e
                 if (started) preparedKey = null // next Play retries the missing parts from the saved position
                 showError(if (started) "Das restliche Audio dieses Kapitels konnte nicht vorbereitet werden. Bitte Vorlesen erneut starten." else e.message ?: "Audio konnte nicht vorbereitet werden.")
             } finally {
