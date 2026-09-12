@@ -34,6 +34,15 @@ class ReaderCoreTest {
         assertEquals("😀".repeat(70), unicode.joinToString(""))
         assertTrue(unicode.all { !it.last().isHighSurrogate() })
     }
+    @Test fun openingSaysThatTheListeningPositionWasKept() {
+        // Without this the screen reads "noch nicht vorbereitet" and a listener concludes the app forgot.
+        assertEquals("Der Garten geöffnet. 12 Abschnitte.", openedMessage("Der Garten", 12, 0, started = false))
+        assertEquals("Der Garten geöffnet. 12 Abschnitte. Zuletzt bei Abschnitt 4. Vorlesen setzt dort fort.",
+            openedMessage("Der Garten", 12, 3, started = true))
+        assertEquals("Ein Brief geöffnet. 1 Abschnitt.", openedMessage("Ein Brief", 1, 0, started = false))
+        assertEquals("Der Garten geöffnet. 12 Abschnitte. Zuletzt bei Abschnitt 12. Vorlesen setzt dort fort.",
+            openedMessage("Der Garten", 12, 99, started = true))
+    }
     @Test fun libraryLabelSaysWhatItIsHowLongAndWhereYouLeftOff() {
         val entry = LibraryEntry("abc", "Der Garten", 12, 0)
         assertEquals("Der Garten, 12 Abschnitte, noch nicht gehört.", libraryLabel(entry, 0, started = false))
@@ -86,5 +95,32 @@ class ReaderCoreTest {
     }
     @Test fun cleanupRemovesLineWrapHyphenButPreservesCompound() {
         assertEquals("Vorlesen\nAudio-\nPlayer", TextChunks.clean("Vor-\nlesen\nAudio-\nPlayer"))
+    }
+    @Test fun aSoftHyphenAtALineEndIsAWrappedWordNotASpokenOne() {
+        // Print typesetting uses U+00AD, and a 500-page book carries thousands of them.
+        assertEquals("verstehen konnten", TextChunks.clean("verste\u00ad\nhen konnten"))
+        assertEquals("Rolle setzt", TextChunks.clean("Rolle\u00ad setzt"))
+    }
+    @Test fun theOldGermanHyphenSignIsTreatedAsAHyphen() {
+        // One book in the test set carries 302 of these, all at a line end, none as a logical operator.
+        assertEquals("desinfizierende Wirkung", TextChunks.clean("desinfizie\u00ac\nrende Wirkung"))
+        assertEquals("Signal A\u00ac\nNicht B", TextChunks.clean("Signal A\u00ac\nNicht B"))
+    }
+    @Test fun aPageNumberOnItsOwnLineIsNotReadOut() {
+        // It sits at the foot of every page and lands in the middle of a sentence when the pages are joined.
+        assertEquals("attraktive Frauen und", TextChunks.clean("attraktive Frauen und\n20"))
+        assertEquals("Erstes Kapitel", TextChunks.clean("xiv\nErstes Kapitel"))
+        assertEquals("Im Jahr 1984", TextChunks.clean("Im Jahr 1984"))
+        // A page that holds nothing else keeps its number, and a year inside a line is never a page number.
+        assertEquals("20", TextChunks.clean("20"))
+        assertEquals("Kapitel 20\nEin Satz", TextChunks.clean("Kapitel 20\nEin Satz"))
+    }
+    @Test fun aWordSplitByAPageBreakIsPutBackTogether() {
+        assertEquals("Es ist ganz schön chaotisch.",
+            TextChunks.joinPages(listOf(TextChunks.clean("Es ist ganz schön chao\u00ad\n21"), TextChunks.clean("tisch.\n22"))))
+        assertEquals("Vorlesen", TextChunks.joinPages(listOf("Vor-", "lesen")))
+        // A compound hyphen before a capital stays, and separate pages stay separate paragraphs.
+        assertEquals("Audio-\n\nPlayer", TextChunks.joinPages(listOf("Audio-", "Player")))
+        assertEquals("Erster Satz.\n\nZweiter Satz.", TextChunks.joinPages(listOf("Erster Satz.", "  ", "Zweiter Satz.")))
     }
 }

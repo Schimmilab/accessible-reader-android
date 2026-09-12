@@ -175,8 +175,10 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         player?.stop(); player?.clearMediaItems()
         preparedKey = null; durations = emptyList()
         prefs.edit().putString("document", document.id).apply()
-        mutable.update { it.copy(document = document, chapter = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices),
-            durationMs = 0, positionMs = 0, error = null, status = "${document.title} geöffnet. ${document.chapters.size} Abschnitte.") }
+        val saved = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices)
+        val heard = prefs.contains("${document.id}.voice")
+        mutable.update { it.copy(document = document, chapter = saved, durationMs = 0, positionMs = 0, error = null,
+            status = openedMessage(document.title, document.chapters.size, saved, heard)) }
     }
 
     fun togglePlayback() { if (player?.wantsPlayback() == true) pause() else play() }

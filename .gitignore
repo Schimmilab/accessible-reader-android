@@ -14,3 +14,6 @@ dist/
 # Heruntergeladene Sprachmodelle zum Ausprobieren, gehören nicht ins Repo
 *.tar.bz2
 *.onnx
+
+# Private Testbücher, die zum Prüfen der Textaufbereitung hier liegen
+*.pdf

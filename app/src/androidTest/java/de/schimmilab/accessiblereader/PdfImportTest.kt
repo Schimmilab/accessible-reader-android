@@ -65,12 +65,41 @@ class PdfImportTest {
         } finally { runCatching { pdf.close() }; file.delete() }
     }
 
+    /**
+     * A scanned book used to be read to the very last page before the app admitted it was useless.
+     * For a 500-page scan that is minutes of waiting for a no.
+     */
+    @Test fun aScannedBookIsRejectedAfterASampleRatherThanAtTheEnd() = runBlocking {
+        val pages = 200
+        val file = File.createTempFile("reader-scan", ".pdf", context.cacheDir)
+        val pdf = PdfDocument()
+        try {
+            repeat(pages) { index ->
+                pdf.finishPage(pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, index + 1).create()))
+            }
+            file.outputStream().use(pdf::writeTo)
+            pdf.close()
+
+            var read = 0
+            val error = runCatching { DocumentStore(context).importPdf(Uri.fromFile(file)) { read++ } }.exceptionOrNull()
+
+            assertNotNull("A scan has to be refused", error)
+            assertTrue(error!!.message!!, error.message!!.contains("keinen Text"))
+            assertTrue("The message has to name text recognition as what is missing",
+                error.message!!.contains("Texterkennung"))
+            assertTrue("Read $read of $pages pages before giving up, that is too many",
+                read <= DocumentStore.SCAN_PROBE_PAGES + 2)
+        } finally { runCatching { pdf.close() }; file.delete() }
+    }
+
     @Test fun imageOnlyPdfReportsMissingOcr() = runBlocking {
         val file = fixture(true)
         try {
             val error = runCatching { DocumentStore(context).importPdf(Uri.fromFile(file)) {} }.exceptionOrNull()
             assertNotNull(error)
-            assertTrue(error!!.message!!.contains("Kein lesbarer Text"))
+            // A short scan cannot be caught by the sample, so the check at the end has to say the same thing.
+            assertTrue(error!!.message!!, error.message!!.contains("keinen Text"))
+            assertTrue(error.message!!.contains("Texterkennung"))
         } finally { file.delete() }
     }
 }

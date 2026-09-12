@@ -25,6 +25,13 @@ class DocumentStore(private val context: Context) {
         const val MAX_BYTES = 120L * 1024 * 1024
         const val MAX_PAGES = 3000
         const val MAX_CHARACTERS = 6_000_000
+
+        /** How many pages without a single character are enough to call a document a scan. */
+        const val SCAN_PROBE_PAGES = 25
+
+        fun scanMessage(pagesChecked: Int): String =
+            if (pagesChecked == 1) "Diese Seite enthält keinen Text, sie ist ein Bild. Der Reader kann Bilder noch nicht lesen, dafür fehlt ihm die Texterkennung."
+            else "Dieses PDF enthält keinen Text. Die ersten $pagesChecked Seiten sind Bilder, also ein Scan. Der Reader kann Bilder noch nicht lesen, dafür fehlt ihm die Texterkennung."
     }
 
     private val directory = File(context.filesDir, "documents").apply { mkdirs() }
@@ -127,9 +134,13 @@ class DocumentStore(private val context: Context) {
                     TextChunks.clean(stripper.getText(pdf)).also {
                         characters += it.length
                         require(characters <= MAX_CHARACTERS) { "Dieses PDF enthält mehr als ${MAX_CHARACTERS / 1_000_000} Millionen Zeichen. Das ist mehr Text, als der Reader auf einmal verarbeiten kann." }
+                        // Say it after a sample instead of reading a 500-page scan to the end first. A book with
+                        // this many leading pages and not one character is a scan, and waiting minutes for that
+                        // verdict is the worst part of it.
+                        require(!(page >= SCAN_PROBE_PAGES && characters == 0)) { scanMessage(page) }
                     }
                 }
-                require(pages.any { it.isNotBlank() }) { "Kein lesbarer Text gefunden. Das PDF ist vermutlich eingescannt. Die Texterkennung folgt später." }
+                require(pages.any { it.isNotBlank() }) { scanMessage(pdf.numberOfPages) }
                 val marks = mutableListOf<Pair<Int, String>>()
                 fun collect(node: PDOutlineNode, depth: Int) {
                     if (depth > 12 || marks.size >= 1000) return
@@ -152,7 +163,7 @@ class DocumentStore(private val context: Context) {
                 val starts = if (hasOutline) sorted else pages.indices.map { it to "Seite ${it + 1}" }
                 val chapters = starts.mapIndexed { index, (first, name) ->
                     val end = starts.getOrNull(index + 1)?.first ?: pages.size
-                    Chapter(name, first + 1, end, pages.subList(first, end).joinToString("\n\n"))
+                    Chapter(name, first + 1, end, TextChunks.joinPages(pages.subList(first, end)))
                 }
                 val emptyPages = pages.count { it.isBlank() }
                 val notice = listOfNotNull(

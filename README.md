@@ -74,9 +74,10 @@ Device tests need an emulator or phone with German offline voice data. Pass one 
 
 ## Limits
 
-- **Scanned PDFs need OCR, which is missing.** A scanned page reports that it holds no readable text.
+- **Scanned PDFs need OCR, which is missing.** A scan is refused after a sample of 25 pages rather than after reading the whole book, and the message names text recognition as the thing that is missing.
+- Running page numbers, soft hyphens and words cut in half by a page break are repaired before speaking. Six real books, 524 to 8 pages, were imported and read to verify this.
 - Maximum 120 MB, 3000 pages, six million extracted characters per PDF. A generated 600-page novel imports in four seconds on an emulator.
-- Bookmarks map to page starts. Several bookmarks on one page collapse into one entry. Tables, footnotes and multi-column layouts can come out in the wrong reading order.
+- Bookmarks map to page starts. Several bookmarks on one page collapse into one entry. Tables, footnotes and multi-column layouts can come out in the wrong reading order, and a two-column page can interleave its columns sentence by sentence.
 - One listening position per document. No search, no user bookmarks.
 - The spoken chapter announcement cannot be switched off.
 - Chapter changes by media key and automatic continuation need the app alive in the background. Once it is swiped out of the recents list, only the current chapter plays to the end; pause and the 30 second jumps keep working. Moving document handling and synthesis into the playback service is the next larger piece of work.

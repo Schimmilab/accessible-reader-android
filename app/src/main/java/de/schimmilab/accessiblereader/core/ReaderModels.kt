@@ -23,11 +23,62 @@ object AudioTimeline {
 }
 
 object TextChunks {
-    fun clean(text: String): String = text.replace("\u00ad", "")
-        .replace(Regex("(\\p{L})-\\r?\\n(\\p{Ll})"), "$1$2")
+    /**
+     * Turns one extracted page into speakable text. The order matters: the page number has to go before the
+     * hyphens are repaired, otherwise it glues itself onto the word the page break cut in half.
+     */
+    fun clean(text: String): String = repairWraps(stripRunningNumbers(collapseWhitespace(text)))
+
+    private fun collapseWhitespace(text: String) = text
         .replace(Regex("[\\t ]+"), " ")
         .replace(Regex(" *\\r?\\n *"), "\n")
         .replace(Regex("\n{3,}"), "\n\n").trim()
+
+    private fun repairWraps(text: String) = text
+        // A soft hyphen at a line end is a wrapped word, never a spoken one. Books typeset for print are full of
+        // them, and a listener hears "verste hen" where the page said "verstehen".
+        .replace("\u00ad\n", "")
+        .replace(Regex("(\\p{L})-\\n(\\p{Ll})"), "$1$2")
+        // Older German typesetting maps its hyphen to U+00AC. Joining only before a lowercase letter keeps the
+        // logical NOT sign of a technical text intact.
+        .replace(Regex("(\\p{L})\u00ac\n(\\p{Ll})"), "$1$2")
+        // Every soft hyphen but a trailing one, which joinPages still needs to repair a word split across pages.
+        .replace(Regex("\u00ad(?=[\\s\\S])"), "")
+        .trim()
+
+    private val RUNNING_NUMBER = Regex("\\p{Nd}{1,4}|[ivxlcdm]{2,8}|[IVXLCDM]{2,8}")
+
+    /**
+     * Drops a page number that stands alone on a page's first or last line. Pages are read one by one and then
+     * joined, so such a number lands in the middle of a sentence: "... sehr attraktive Frauen und zwanzig
+     * Maenner, die ...". A page holding nothing but a number is left alone.
+     */
+    fun stripRunningNumbers(page: String): String {
+        var lines = page.split("\n")
+        if (lines.size >= 2 && RUNNING_NUMBER.matches(lines.first().trim())) lines = lines.drop(1)
+        if (lines.size >= 2 && RUNNING_NUMBER.matches(lines.last().trim())) lines = lines.dropLast(1)
+        return lines.joinToString("\n").trim()
+    }
+
+    /**
+     * Joins the pages of a chapter and repairs words that the page break cut in half. A print book breaks a word
+     * at the bottom of a page as readily as at the end of a line.
+     */
+    fun joinPages(pages: List<String>): String {
+        val out = StringBuilder()
+        for (page in pages) {
+            val text = page.trim()
+            if (text.isEmpty()) continue
+            if (out.isNotEmpty()) {
+                val last = out.last()
+                val wrapped = last == '\u00ad' ||
+                    ((last == '-' || last == '\u00ac') && text.first().isLowerCase())
+                if (wrapped) out.deleteCharAt(out.length - 1) else out.append("\n\n")
+            }
+            out.append(text)
+        }
+        return out.toString().replace("\u00ad", "")
+    }
 
     // Limit UTF-16 length as required by Android TTS; never split a surrogate pair.
     fun split(text: String, limit: Int = 1000): List<String> {
