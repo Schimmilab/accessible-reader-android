@@ -1,54 +1,54 @@
-# Testprotokoll 0.3.0
+# Test protocol 0.3.0
 
-Datum: 12. September 2026
+Date: 12 September 2026
 
-## Was neu ist
+## What is new
 
-Die Bibliothek. Bisher kannte die App nur das zuletzt geöffnete Dokument. Ein früher importiertes PDF war nicht mehr erreichbar, obwohl sein Text weiterhin im privaten Speicher lag. Die MVP-Liste in [PLAN.md](PLAN.md) verlangt ausdrücklich eine vollständig mit TalkBack bedienbare Bibliothek.
+The library. Until now the app only knew the document that was opened last. A PDF imported earlier was no longer reachable, even though its text still sat in private storage. The MVP list in [PLAN.md](PLAN.md) explicitly requires a library that can be operated entirely with TalkBack.
 
-- Alle importierten Dokumente werden aufgelistet, neueste zuerst.
-- Jede Zeile nennt Titel, Anzahl der Abschnitte und wo die Nutzerin aufgehört hat.
-- Ein Dokument lässt sich öffnen und nach Rückfrage entfernen.
-- Erreichbar über die Taste „Bibliothek“ und über den Sprachbefehl „Bibliothek“ oder „Meine Bücher“.
+- All imported documents are listed, newest first.
+- Each row names the title, the number of sections and where the user stopped.
+- A document can be opened and, after a confirmation prompt, removed.
+- Reachable through the „Bibliothek“ button and through the voice command „Bibliothek“ or „Meine Bücher“.
 
-## Umgebung
+## Environment
 
-- Mac mini M1, Pixel-8a-Emulator, Android 17, API 37, ARM64, Google-Play-Abbild.
-- App 0.3.0, Versionscode 7.
+- Mac mini M1, Pixel 8a emulator, Android 17, API 37, ARM64, Google Play image.
+- App 0.3.0, version code 7.
 - Java 17, Gradle 9.6.0, Android Gradle Plugin 9.4.0, Android SDK 36.
 
-## Ergebnisse der automatischen Prüfungen
+## Results of the automated checks
 
-| Prüfung | Ergebnis |
+| Check | Result |
 | --- | --- |
-| Debug-App und Test-App bauen, Android Lint | bestanden, Lint ohne Fehler |
-| Zehn Kernlogiktests (JVM), neu: Beschriftung einer Bibliothekszeile, Sprachbefehl | bestanden |
-| LibraryTest, drei Prüfungen: Reihenfolge, Entfernen, Altbestand ohne Begleitdatei, leere Bibliothek | bestanden |
-| LibraryUiTest, eine Prüfung: benannte Zeilen, Rückfrage vor dem Entfernen, Abbrechen behält das Dokument | bestanden |
-| ProgressivePreparationTest, PlaybackFocusTest, ReaderUiTest, MediaButtonTest, PdfImportTest, SpeechAudioTest | bestanden |
+| Build debug app and test app, Android Lint | passed, Lint without errors |
+| Ten core logic tests (JVM), new: label of a library row, voice command | passed |
+| LibraryTest, three checks: order, removal, existing document without side file, empty library | passed |
+| LibraryUiTest, one check: named rows, confirmation prompt before removal, cancelling keeps the document | passed |
+| ProgressivePreparationTest, PlaybackFocusTest, ReaderUiTest, MediaButtonTest, PdfImportTest, SpeechAudioTest | passed |
 
-Summe: 21 Gerätetests in acht Klassen, keine übersprungen.
+Total: 21 instrumented tests in eight classes, none skipped.
 
-## Ein Befund aus dem Oberflächentest
+## A finding from the user interface test
 
-Der erste Durchlauf von `LibraryUiTest` scheiterte, weil zwei Tasten gleichzeitig „Entfernen“ hießen, eine in der Liste und eine im Bestätigungsdialog. Für eine sehende Person ist das eindeutig, weil die Dialoge übereinander liegen. Beim Anhören ist es das nicht. Die bestätigende Taste heißt jetzt „Ja, entfernen“. Der Test wurde nicht angepasst, sondern die Oberfläche.
+The first run of `LibraryUiTest` failed because two buttons were called „Entfernen“ at the same time, one in the list and one in the confirmation dialog. For a sighted person this is unambiguous, because the dialogs lie on top of each other. When listening it is not. The confirming button is now called „Ja, entfernen“. The test was not adjusted, the user interface was.
 
-## Zusätzlich manuell zu prüfen
+## Additional manual checks
 
-Ergänzend zu den Checklisten in [TEST-0.2.md](TEST-0.2.md) und [TEST-0.2.2.md](TEST-0.2.2.md):
+In addition to the checklists in [TEST-0.2.md](TEST-0.2.md) and [TEST-0.2.2.md](TEST-0.2.2.md):
 
-| Nr. | Aufgabe | Erwartung | Ergebnis |
+| No. | Task | Expectation | Result |
 | --- | --- | --- | --- |
-| 16 | Zwei PDFs nacheinander importieren, dann „Bibliothek“ | Beide erscheinen, das zuletzt importierte oben | |
-| 17 | Erstes Dokument ein Stück hören, Bibliothek öffnen | Die Zeile nennt den zuletzt gehörten Abschnitt | |
-| 18 | Aus der Bibliothek das andere Dokument öffnen | Wechsel ohne Neustart, Wiedergabe beginnt beim Vorlesen von vorn | |
-| 19 | Ein Dokument entfernen, im Dialog „Abbrechen“ | Dokument bleibt in der Liste | |
-| 20 | Dasselbe entfernen und mit „Ja, entfernen“ bestätigen | Verschwindet aus der Liste, Hörposition ist weg, die PDF-Datei auf dem Gerät existiert weiter | |
-| 21 | Das gerade gehörte Dokument entfernen | App fällt auf die Leseprobe zurück, ohne Absturz | |
-| 22 | Sprachbefehl „Bibliothek“ | Bibliothek öffnet sich | |
+| 16 | Import two PDFs one after the other, then „Bibliothek“ | Both appear, the one imported last at the top | |
+| 17 | Listen to the first document for a while, open the library | The row names the section listened to last | |
+| 18 | Open the other document from the library | Switch without a restart, playback starts from the beginning when reading aloud | |
+| 19 | Remove a document, choose „Abbrechen“ in the dialog | The document stays in the list | |
+| 20 | Remove the same one and confirm with „Ja, entfernen“ | It disappears from the list, the listening position is gone, the PDF file on the device still exists | |
+| 21 | Remove the document that is currently being listened to | The app falls back to the sample reading, without a crash | |
+| 22 | Voice command „Bibliothek“ | The library opens | |
 
-## Noch offen
+## Still open
 
-- Der gesamte manuelle Durchgang auf einem echten Android-Gerät.
-- Der Diagnosebericht vom Zielgerät. Er entscheidet, ob die Audioerzeugung so bleiben kann.
-- Der Hörtest der Testnutzerin, siehe [VOICES.md](VOICES.md).
+- The complete manual run on a real Android device.
+- The diagnosis report from the target device. It decides whether the audio generation can stay as it is.
+- The listening test by the test reader, see [VOICES.md](VOICES.md).

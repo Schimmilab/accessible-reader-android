@@ -4,12 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.2.3.
+Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.6.0.
 
-**The reference device is a Samsung Galaxy S25, Android 16 / One UI 8.5, Samsung TalkBack 16.2, Vocalizer speech engine, mostly a Bluetooth speaker** (`docs/decisions/0002-zielgeraet-samsung-s25.md`). Only a Pixel emulator with Google TTS is available here, so the emulator proves logic and regressions, never that something works on the target. It is still unverified whether Vocalizer supports `synthesizeToFile`, which the whole audio pipeline depends on; the in-app diagnosis in the settings dialog exists to answer that remotely.
+**The reference device is a Samsung Galaxy S25, Android 16 / One UI 8.5, Samsung TalkBack 16.2, Vocalizer speech engine, mostly a Bluetooth speaker** (`docs/decisions/0002-target-device-samsung-s25.md`). Only a Pixel emulator with Google TTS is available here, so the emulator proves logic and regressions, never that something works on the target. It is still unverified whether Vocalizer supports `synthesizeToFile`, which the whole audio pipeline depends on; the in-app diagnosis in the settings dialog exists to answer that remotely.
  Text PDFs are imported, split into chapters, synthesized to audio with a local German Android TTS voice and played through a MediaSession. Everything is designed around TalkBack, voice commands and media keys. Android is the lead platform by decision (`docs/decisions/0001-android-first.md`); do not design for a shared iOS codebase.
 
-Language conventions: docs, UI strings and status messages are German; commit messages are English (`fix:`, `feat:`, `docs:` prefixes). Keep new user-facing strings in German.
+Language conventions. **Everything a developer reads is English, everything the app speaks is German.**
+
+- English: code, comments, commit messages (`fix:`, `feat:`, `docs:` prefixes), pull requests, GitHub release notes, `README.md` and every file under `docs/` except the one below. The project is public so that someone else can pick it up, including for another UI language, and German documentation would lock them out.
+- German: UI strings, status messages, spoken output, voice command words in `CommandParser`, and `docs/BEDIENUNG.md`, the manual for the people actually using the app today. Keep new user-facing strings German.
+- German quotations of what a test reader said stay German inside an English document, with a short English translation in square brackets after them. A translated quote is no longer evidence.
 
 ## Build and test
 

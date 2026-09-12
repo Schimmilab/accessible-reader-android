@@ -1,186 +1,188 @@
-# Testen auf dem Entwicklungsrechner
+# Testing on the development machine
 
-Stand: 10. September 2026
+> German strings quoted in this document are the app's own wording. The README section "Another language" translates the ones that recur.
 
-## Ziel
+Status: 10 September 2026
 
-Wir testen die App bereits auf dem Entwicklungsrechner als Audiooberflaeche. Ein sehender Entwickler kann damit viele Barrieren finden. Er kann die Erfahrung einer blinden Person aber nicht vollstaendig nachbilden. Die blinde Testnutzerin prueft deshalb jeden benutzbaren Meilenstein auf ihrem eigenen Smartphone.
+## Goal
 
-## Aktueller Stand des Macs
+We already test the app on the development machine as an audio interface. A sighted developer can find many barriers that way. He cannot fully reproduce the experience of a blind person, though. The blind test user therefore checks every usable milestone on her own smartphone.
 
-Installiert sind Android Studio für Apple Silicon, SDK 36 und 37, Platform Tools und ein Pixel-8a-Emulator mit Android 17, API 37, Google Play und 16-KB-Seitengröße. Der Build verwendet das vorhandene Java-17-JDK. Ein echtes Android-Gerät ist noch nicht verbunden.
+## Current state of the Mac
 
-TalkBack ist im Emulator eingerichtet. Für Voice Access wurde ein englisches Offline-Sprachmodell installiert. Das bestätigt keine deutsche Spracheingabe. Die App prüft ihre eigene lokale Spracherkennung unabhängig von Voice Access. Das Weiterreichen des Mac-Mikrofons muss für einen vollständigen Sprachtest noch praktisch überprüft werden.
+Installed are Android Studio for Apple Silicon, SDK 36 and 37, Platform Tools and a Pixel 8a emulator with Android 17, API 37, Google Play and 16 KB page size. The build uses the existing Java 17 JDK. A real Android device is not connected yet.
 
-Android Studio ist fuer dieses Projekt die einfachste Arbeitsumgebung. Es bringt die Verwaltung von SDK, Emulatoren, Logausgabe und Bedienungstests zusammen.
+TalkBack is set up in the emulator. An English offline speech model was installed for Voice Access. That does not confirm German speech input. The app checks its own local speech recognition independently of Voice Access. Passing the Mac microphone through still has to be verified in practice for a complete speech test.
 
-## Einmalige Einrichtung
+Android Studio is the simplest working environment for this project. It brings together the management of SDK, emulators, log output and accessibility testing.
 
-1. Android Studio installieren.
-2. Das Android-SDK, Platform Tools und den Emulator installieren.
-3. Ein virtuelles Pixel-Geraet mit einer Google-Play-Systemabbildung anlegen.
-4. Im Emulator die Android Accessibility Suite und TalkBack aktualisieren.
-5. Audioausgabe des Emulators ueber Lautsprecher oder Kopfhoerer pruefen.
-6. In den erweiterten Emulator-Einstellungen die Nutzung des Mac-Mikrofons einschalten.
-7. TalkBack aktivieren und einen schnellen Ein- und Ausschalter einrichten.
+## One-time setup
 
-Eine Google-Play-Systemabbildung ist wichtig, weil reine AOSP-Abbilder nicht immer dieselben Google-Dienste und Accessibility-Komponenten enthalten wie ein verbreitetes Endgeraet.
+1. Install Android Studio.
+2. Install the Android SDK, Platform Tools and the emulator.
+3. Create a virtual Pixel device with a Google Play system image.
+4. Update the Android Accessibility Suite and TalkBack in the emulator.
+5. Check the emulator audio output through speakers or headphones.
+6. Switch on the use of the Mac microphone in the extended emulator settings.
+7. Activate TalkBack and set up a quick on and off switch.
 
-## So wird ohne Sicht getestet
+A Google Play system image matters because pure AOSP images do not always contain the same Google services and accessibility components as a widely used end device.
 
-### Runde 1: TalkBack bei sichtbarem Bildschirm
+## How testing without sight works
 
-Der Entwickler beobachtet Fokus, Beschriftungen und Reihenfolge. Geprueft wird:
+### Round 1: TalkBack with a visible screen
 
-- Wird jedes Bedienelement genau einmal angesagt?
-- Sagt TalkBack Typ und Zustand korrekt an?
-- Ist die Reihenfolge logisch?
-- Gibt es unbenannte Symbole oder leere Fokusziele?
-- Sind Aenderungen wie Pause, Kapitelwechsel und Kostenmodus hoerbar?
-- Unterbricht oder ueberlagert TalkBack das Buchaudio unangenehm?
+The developer watches focus, labels and order. The checks are:
 
-### Runde 2: Bildschirm nicht ansehen
+- Is every control announced exactly once?
+- Does TalkBack announce type and state correctly?
+- Is the order logical?
+- Are there unnamed icons or empty focus targets?
+- Are changes such as pause, chapter change and cost mode audible?
+- Does TalkBack interrupt or overlay the book audio unpleasantly?
 
-Der Emulator bleibt geoeffnet, der Entwickler wendet den Blick jedoch ab oder deckt den Bildschirm ab. Die Aufgabe wird nur mit TalkBack, Tastatur und Ton erledigt.
+### Round 2: Do not look at the screen
 
-Pflichtaufgaben:
+The emulator stays open, but the developer looks away or covers the screen. The task is completed with TalkBack, keyboard and sound only.
 
-1. App starten.
-2. Ein Testdokument oeffnen.
-3. Vorlesen beginnen.
-4. 30 Sekunden zurueckspringen.
-5. Zum naechsten Kapitel wechseln.
-6. Inhaltsverzeichnis aufrufen.
-7. Aktuelle Position ansagen lassen.
-8. Ein Lesezeichen setzen.
-9. App schliessen und an derselben Stelle fortsetzen.
+Mandatory tasks:
 
-Jede Sackgasse, unklare Ansage und unnoetige Wischbewegung wird als Fehler notiert.
+1. Start the app.
+2. Open a test document.
+3. Start reading aloud.
+4. Jump back 30 seconds.
+5. Switch to the next chapter.
+6. Open the table of contents.
+7. Have the current position announced.
+8. Set a bookmark.
+9. Close the app and resume at the same place.
 
-### Runde 3: Externe Tastatur
+Every dead end, unclear announcement and unnecessary swipe gesture is noted as a defect.
 
-TalkBack unterstuetzt eine externe Tastatur. Beim erweiterten Tastenlayout dient auf einer Mac-Tastatur die Befehlstaste als TalkBack-Taste. Damit lassen sich Fokusbewegung, Aktivierung, Ueberschriften und Medienwiedergabe ohne Maus testen.
+### Round 3: External keyboard
 
-Die im Emulator aktive TalkBack-Version ist massgeblich, weil Google die Tastenbelegung weiterentwickelt. Die eingebaute TalkBack-Tastaturhilfe zeigt die aktuelle Belegung.
+TalkBack supports an external keyboard. With the extended key layout the command key acts as the TalkBack key on a Mac keyboard. That makes it possible to test focus movement, activation, headings and media playback without a mouse.
 
-### Runde 4: Spracheingabe
+The TalkBack version active in the emulator is what counts, because Google keeps developing the key assignment. The built-in TalkBack keyboard help shows the current assignment.
 
-Vor jedem Sprachbefehl pausiert die App das Buchaudio. Der Emulator verwendet das Mikrofon des Macs. Geprueft werden:
+### Round 4: Speech input
 
-- leise und normale Sprechlautstaerke,
-- Hintergrundgeraeusche,
-- Befehle waehrend TalkBack spricht,
-- aehnliche Befehle wie "vor" und "vorlesen",
-- unbekannte Befehle,
-- fehlende Internetverbindung,
-- sichere Wiederaufnahme der Wiedergabe.
+The app pauses the book audio before every voice command. The emulator uses the microphone of the Mac. The checks are:
 
-Der Mikrofonzugriff ist im Android-Emulator standardmaessig ausgeschaltet. Er wird unter den erweiterten Einstellungen bei "Microphone" mit "Virtual microphone uses host audio input" aktiviert.
+- quiet and normal speaking volume,
+- background noise,
+- commands while TalkBack is speaking,
+- similar commands such as "vor" and "vorlesen" [forward and read aloud],
+- unknown commands,
+- missing internet connection,
+- safe resumption of playback.
 
-## Test auf einem echten Android-Smartphone
+Microphone access is switched off by default in the Android emulator. It is enabled under the extended settings at "Microphone" with "Virtual microphone uses host audio input".
 
-Der Emulator prueft die Logik, ersetzt aber kein echtes Geraet. Auf einem Smartphone unterscheiden sich TalkBack-Version, Herstelleroberflaeche, Akkumanagement, TTS-Dienste, Bluetooth und Mikrofonverhalten.
+## Test on a real Android smartphone
 
-Der erste Prototyp wird als Debug-APK ueber USB oder WLAN installiert. Getestet wird mindestens auf:
+The emulator checks the logic, but it does not replace a real device. On a smartphone the TalkBack version, the manufacturer interface, battery management, TTS services, Bluetooth and microphone behaviour all differ.
 
-- einem Google- oder weitgehend unveraenderten Android-Geraet,
-- einem Samsung-Geraet, wenn eines verfuegbar ist,
-- dem Smartphone der Testnutzerin.
+The first prototype is installed as a debug APK over USB or Wi-Fi. Testing happens at least on:
 
-Auf dem echten Geraet werden Bildschirmabschaltung, Kopfhoerer-Tasten, eingehende Benachrichtigungen, Telefonanrufe, Bluetooth-Unterbrechungen und laengere Laufzeiten geprueft.
+- a Google device or a largely unmodified Android device,
+- a Samsung device, if one is available,
+- the smartphone of the test user.
 
-## Automatische Tests
+On the real device, screen off, headphone keys, incoming notifications, phone calls, Bluetooth interruptions and longer run times are checked.
 
-Jetpack Compose stellt fuer jede Oberflaeche einen Semantikbaum bereit. Tests koennen dadurch pruefen, ob ein Element als Schaltflaeche, Ueberschrift oder Status erkannt wird und ob eine passende Aktion vorhanden ist.
+## Automated tests
 
-Fuer jede Kernfunktion entsteht mindestens ein Test:
+Jetpack Compose provides a semantics tree for every interface. Tests can therefore check whether an element is recognized as a button, a heading or a status, and whether a matching action exists.
 
-- Play und Pause haben Beschriftung, Rolle und Zustand.
-- Vor und Zurueck nennen die Sprungweite.
-- Kapitel besitzen Ueberschriften-Semantik.
-- Das Inhaltsverzeichnis hat eine feste Lesereihenfolge.
-- Der Cloud-Modus nennt Kostenstatus und Limit.
-- Fehler erscheinen als hoerbare Meldung und erhalten den Fokus.
-- Keine Kernaktion ist nur ueber eine Geste erreichbar.
+At least one test is created for every core function:
 
-Zusaetzlich wird das Android Accessibility Test Framework aktiviert. Es erkennt unter anderem fehlende Beschriftungen, zu kleine Ziele, Kontrastprobleme und Teile der falschen Fokusreihenfolge.
+- Play and pause have a label, a role and a state.
+- Forward and back name the jump distance.
+- Chapters have heading semantics.
+- The table of contents has a fixed reading order.
+- The cloud mode names cost status and limit.
+- Errors appear as an audible message and receive the focus.
+- No core action is reachable only by a gesture.
 
-## Hoertest fuer Stimmen
+In addition the Android Accessibility Test Framework is enabled. It detects, among other things, missing labels, targets that are too small, contrast problems and parts of the wrong focus order.
 
-Alle Stimmen erhalten denselben Text und dieselben Vergleichsbedingungen. Dateinamen und gesprochene Einleitungen duerfen die Stimme nicht vorab positiv oder negativ bewerten.
+## Listening test for voices
 
-Bewertungsskala von 1 bis 5:
+All voices get the same text and the same comparison conditions. File names and spoken introductions must not judge the voice positively or negatively in advance.
 
-- Natuerlichkeit
-- Verstaendlichkeit
-- Betonung
-- Pausen
-- Aussprache von Zahlen und Abkuerzungen
-- Verhalten bei 1,25-facher und 1,5-facher Geschwindigkeit
-- Anstrengung nach laengerem Hoeren
+Rating scale from 1 to 5:
 
-Die erste Auswahl erfolgt mit zwei bis fuenf Minuten langen Proben. Die Favoriten werden anschliessend mindestens 30 Minuten am Stueck gehoert.
+- Naturalness
+- Intelligibility
+- Emphasis
+- Pauses
+- Pronunciation of numbers and abbreviations
+- Behaviour at 1.25 times and 1.5 times speed
+- Effort after longer listening
 
-## Grenzen des Tests durch Sehende
+The first selection is made with sample readings of two to five minutes. The favourites are then listened to for at least 30 minutes in one go.
 
-"Augen zu" ist ein Fehlerfindungsverfahren, keine Simulation von Blindheit. Sehende kennen den Bildschirmaufbau oft bereits und koennen sich Positionen merken. Blinde Menschen bringen ausserdem viel mehr Erfahrung mit TalkBack, Gesten, Braillezeilen und hohen Sprechgeschwindigkeiten mit.
+## Limits of testing by sighted people
 
-Deshalb gilt:
+"Eyes closed" is a defect finding method, not a simulation of blindness. Sighted people often already know the screen layout and can memorize positions. Blind people also bring much more experience with TalkBack, gestures, braille displays and high speaking rates.
 
-- Wir beheben offensichtliche Fehler vor ihrem Test.
-- Wir erklaeren ihr den Bedienweg nicht vorab, wenn wir dessen Auffindbarkeit pruefen.
-- Wir beobachten nur mit ihrer Zustimmung.
-- Ihre Rueckmeldung entscheidet bei widerspruechlichen Annahmen.
+Therefore the following applies:
 
-## Testprotokoll pro Version
+- We fix obvious defects before her test.
+- We do not explain the operating path to her in advance when we are testing how findable it is.
+- We observe only with her consent.
+- Her feedback decides when assumptions contradict each other.
 
-Zu jeder Test-APK werden festgehalten:
+## Test protocol per version
 
-- Versionsnummer und Commit
-- Geraet, Android-Version und TalkBack-Version
-- aktive Stimme und Geschwindigkeit
-- getestetes Dokument
-- bestandene und gescheiterte Aufgaben
-- Zahl der noetigen Fokusbewegungen fuer Kernaufgaben
-- Sprachfehler und Audioartefakte
-- offene Fragen fuer die Testnutzerin
+The following is recorded for every test APK:
 
-## Naechster technischer Schritt
+- Version number and commit
+- Device, Android version and TalkBack version
+- Active voice and speed
+- Tested document
+- Passed and failed tasks
+- Number of focus movements needed for core tasks
+- Speech errors and audio artefacts
+- Open questions for the test user
 
-Das Grundgerüst 0.3.0 spielt nach einem Mindestvorlauf, sagt Kapitel an, liest am Kapitelende weiter, bedient Kapitel über Medientasten, führt eine Bibliothek und kann seine eigene Sprachausgabe prüfen. Testnotizen stehen in [TEST-0.1.md](TEST-0.1.md), [TEST-0.1.1.md](TEST-0.1.1.md), [TEST-0.2.md](TEST-0.2.md), [TEST-0.2.1.md](TEST-0.2.1.md), [TEST-0.2.2.md](TEST-0.2.2.md) , [TEST-0.3.md](TEST-0.3.md) und [TEST-0.4.2.md](TEST-0.4.2.md).
+## Next technical step
 
-Der nächste manuelle Durchgang prüft die Bedienung mit TalkBack ohne Blick auf den Bildschirm, echte Spracheingabe über das Mac-Mikrofon und anschließend die Bewertung der Testnutzerin auf einem Smartphone. Die Checkliste dafür steht in [TEST-0.2.md](TEST-0.2.md).
+The 0.3.0 scaffold plays after a minimum lead, announces chapters, keeps reading at the end of a chapter, controls chapters through media keys, keeps a library and can check its own speech engine. Test notes are in [TEST-0.1.md](TEST-0.1.md), [TEST-0.1.1.md](TEST-0.1.1.md), [TEST-0.2.md](TEST-0.2.md), [TEST-0.2.1.md](TEST-0.2.1.md), [TEST-0.2.2.md](TEST-0.2.2.md), [TEST-0.3.md](TEST-0.3.md) and [TEST-0.4.2.md](TEST-0.4.2.md).
 
-Hinweis für Gerätetests: Der Emulator erzeugt einen Audioteil in rund 30 Sekunden, also langsamer als die Wiedergabe. Tests, die ans Kapitelende springen, müssen zuerst auf das Ende der Aufbereitung warten. Ein Klick auf „Vorlesen“ öffnet bei frischer Installation erst den Benachrichtigungsdialog von Android 13 und neuer.
+The next manual round checks operation with TalkBack without looking at the screen, real speech input through the Mac microphone, and after that the assessment by the test user on a smartphone. The checklist for it is in [TEST-0.2.md](TEST-0.2.md).
 
-## TalkBack und automatische Tests schließen sich aus
+Note for device tests: The emulator produces one audio part in roughly 30 seconds, so slower than playback. Tests that jump to the end of a chapter have to wait for the end of the preparation first. On a fresh installation, a click on "Vorlesen" [read aloud] first opens the notification dialog of Android 13 and newer.
 
-⛔ Vor einem automatischen Testlauf muss TalkBack abgeschaltet sein.
+## TalkBack and automated tests are mutually exclusive
 
-Bei aktivem TalkBack liest es jede Änderung der Statuszeile vor und hält dafür den Audiofokus. Die Wiedergabetests warten dann korrekt, aber minutenlang, und laufen in ihre Zeitlimits. Gemessen am 12. September 2026: dieselben vier Prüfungen brauchen mit abgeschaltetem TalkBack 43 bis 79 Sekunden, mit aktivem TalkBack liefen zwei davon in die Zeitüberschreitung nach 240 Sekunden. Im Protokoll der Sprachausgabe klaffen dabei Lücken von 79 und 194 Sekunden, in denen die App gar keine Synthese anfordert.
+⛔ TalkBack must be switched off before an automated test run.
 
-Das ist kein Fehler, sondern genau das gewünschte Verhalten. Es macht die beiden Prüfarten nur unvereinbar.
+With TalkBack active it reads out every change of the status line and holds the audio focus for it. The playback tests then wait correctly, but for minutes, and run into their time limits. Measured on 12 September 2026: the same four checks take 43 to 79 seconds with TalkBack switched off, while with TalkBack active two of them ran into the timeout after 240 seconds. In the log of the speech engine there are gaps of 79 and 194 seconds in which the app requests no synthesis at all.
+
+That is not a defect, it is exactly the intended behaviour. It only makes the two kinds of check incompatible.
 
 ```sh
-# vor dem automatischen Lauf
+# before an automated run
 adb shell settings put secure accessibility_enabled 0
 adb shell settings put secure enabled_accessibility_services null
 
-# danach für den Handtest wieder einschalten
+# afterwards, switch it back on for manual testing
 adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService
 adb shell settings put secure accessibility_enabled 1
 ```
 
-Die Regel aus dem Abschnitt zur Regression bleibt damit bestehen und wird nur konkret: Während eines TalkBack-Durchgangs keine UI-Automation starten, und umgekehrt.
+The rule from the section on regression therefore stands and only becomes concrete: do not start UI automation during a TalkBack round, and the other way around.
 
-## Regression: TalkBack und Vorlesen
+## Regression: TalkBack and reading aloud
 
-`PlaybackFocusTest` prüft mit echtem Media3-Player und lokalen deutschen Audiodaten:
+`PlaybackFocusTest` checks with a real Media3 player and local German audio data:
 
-- Vorübergehender Audiofokusverlust ändert die Pause-Taste nicht in eine Vorlesen-Taste.
-- Nach Ende der Unterbrechung setzt der Player die Wiedergabe fort.
-- Eine während der Unterbrechung gedrückte Pause bleibt erhalten.
-- Dauerhafter Fokusverlust startet nach Freigabe nicht ungefragt wieder.
-- Das Kapitelende bietet einen Neustart an.
+- A transient loss of audio focus does not turn the pause button into a read aloud button.
+- After the end of the interruption the player resumes playback.
+- A pause pressed during the interruption is kept.
+- A permanent loss of focus does not restart on its own after the focus is released.
+- The end of a chapter offers a restart.
 
-Danach separat mit aktiviertem TalkBack testen: Vorlesen-Taste fokussieren, per Doppeltipp aktivieren, mindestens 20 Sekunden ohne weitere Eingabe zuhören, wieder per Doppeltipp pausieren und prüfen, dass die Pause erhalten bleibt. Die Taste muss während einer kurzen Menüansage „Pause“ bleiben. Ein normaler Compose-Klicktest ersetzt diesen Durchgang nicht. Während des Gestentests keine UI-Automation starten, die andere Bedienungshilfen unterdrückt.
+After that, test separately with TalkBack enabled: focus the "Vorlesen" button, activate it with a double tap, listen for at least 20 seconds without further input, pause again with a double tap and check that the pause is kept. The button has to stay "Pause" during a short menu announcement. A normal Compose click test does not replace this round. Do not start UI automation during the gesture test, because it suppresses other accessibility services.

@@ -1,61 +1,61 @@
-# Testprotokoll 0.2.0
+# Test protocol 0.2.0
 
-Datum: 11. September 2026
+Date: 11 September 2026
 
-## Änderungen gegenüber 0.1.1
+## Changes compared to 0.1.1
 
-1. Vorlesen beginnt nach dem ersten Audioteil. Die restlichen Teile des Kapitels werden während des Hörens vorbereitet und angehängt, ohne Statusansagen für TalkBack.
-2. Jedes Kapitel beginnt mit einer gesprochenen Ansage in der Buchstimme. Am Kapitelende liest die App im nächsten Kapitel weiter, ohne Eingabe und ohne TalkBack-Ansage. Das letzte Kapitel bleibt stehen und bietet den Neustart an.
-3. Kopfhörer, Bluetooth und Medienbenachrichtigung: „Weiter“ wechselt das Kapitel, „Zurück“ springt an den Kapitelanfang und danach ins vorherige Kapitel. Die Benachrichtigung hat Tasten für 30 Sekunden vor und zurück, die über alle Audioteile rechnen.
+1. Reading aloud starts after the first audio part. The remaining parts of the chapter are prepared and appended while the listener is listening, without status announcements for TalkBack.
+2. Every chapter starts with a spoken announcement in the book voice. At the end of a chapter the app keeps reading in the next chapter, without input and without a TalkBack announcement. The last chapter stops and offers a restart.
+3. Headphones, Bluetooth and the media notification: „Weiter“ changes the chapter, „Zurück“ jumps to the start of the chapter and after that into the previous chapter. The notification has buttons for 30 seconds forward and back that compute across all audio parts.
 
-Commits: bdf91e0 (Build-Upgrade), fe35dae (Punkt 1 und 2), 4fe1732 (Punkt 3), dazu der Versionscommit.
+Commits: bdf91e0 (build upgrade), fe35dae (points 1 and 2), 4fe1732 (point 3), plus the version commit.
 
-## Umgebung
+## Environment
 
-- Mac mini M1, Pixel-8a-Emulator, Android 17, API 37, ARM64, Google-Play-Abbild.
-- TalkBack 17.0.0.889642762, Google-Sprachausgabe 20260511.02, lokale deutsche Stimme.
-- App 0.2.0, Versionscode 3, Leseprobe mit drei Abschnitten bei einfachem Tempo.
+- Mac mini M1, Pixel 8a emulator, Android 17, API 37, ARM64, Google Play image.
+- TalkBack 17.0.0.889642762, Google speech engine 20260511.02, local German voice.
+- App 0.2.0, version code 3, sample reading with three sections at normal speed.
 - Java 17, Gradle 9.6.0, Android Gradle Plugin 9.4.0, Android SDK 36.
 
-## Ergebnisse der automatischen Prüfungen
+## Results of the automatic checks
 
-| Prüfung | Ergebnis |
+| Check | Result |
 | --- | --- |
-| Debug-App und Test-App bauen, Android Lint | bestanden, Lint ohne Fehler |
-| Sechs Kernlogiktests (JVM), darunter neu die Kapitelansage | bestanden |
-| PlaybackFocusTest, fünf Prüfungen, neu: Weiterlesen ohne Statusansage, Neustart nur im letzten Kapitel | bestanden |
-| ProgressivePreparationTest, zwei Prüfungen: Wiedergabe startet vor Ende der Aufbereitung, Kapitelwechsel bricht sie ab | bestanden, rund 3 Minuten wegen langsamer Emulator-Synthese |
-| MediaButtonTest, zwei Prüfungen über einen zweiten MediaController wie bei Kopfhörern | bestanden |
-| ReaderUiTest, zwei Prüfungen | bestanden |
-| SpeechAudioTest, eine Prüfung | bestanden, deutsche Offline-Stimme vorhanden |
-| PdfImportTest, zwei Prüfungen | erster Lauf fehlgeschlagen, ohne verwertbare Ausgabe, weil der folgende Lauf die Ergebnisdatei überschrieb; Wiederholung allein bestanden. Ursache nicht ermittelt, der Importcode wurde in 0.2.0 nicht geändert. Bei erneutem Auftreten beobachten |
+| Build the debug app and the test app, Android Lint | passed, Lint without errors |
+| Six core logic tests (JVM), among them the chapter announcement as a new one | passed |
+| PlaybackFocusTest, five checks, new: keep reading without a status announcement, restart only in the last chapter | passed |
+| ProgressivePreparationTest, two checks: playback starts before the preparation ends, a chapter change aborts it | passed, about 3 minutes because the emulator synthesizes slowly |
+| MediaButtonTest, two checks through a second MediaController as with headphones | passed |
+| ReaderUiTest, two checks | passed |
+| SpeechAudioTest, one check | passed, German offline voice present |
+| PdfImportTest, two checks | first run failed, without usable output, because the following run overwrote the result file; the repetition passed on its own. Cause not determined, the import code was not changed in 0.2.0. Watch for it if it happens again |
 
-Der Emulator erzeugt einen Audioteil in rund 30 Sekunden und ist damit langsamer als die Wiedergabe. Der Aufbereitungstest hat deshalb vermutlich auch den Fall durchlaufen, dass der Player vor dem nächsten Teil leerläuft und nach dem Anhängen weiterspielt. Auf einem echten Gerät ist die Synthese deutlich schneller als Echtzeit.
+The emulator generates one audio part in about 30 seconds and is therefore slower than playback. The preparation test has therefore probably also run through the case where the player runs dry before the next part and keeps playing after it is appended. On a real device the synthesis is much faster than real time.
 
-## Manueller Durchgang mit TalkBack (offen)
+## Manual run with TalkBack (open)
 
-Ohne Blick auf den Bildschirm, nur TalkBack, Ton und Doppeltipp. Kein ADB, keine UI-Automation während dieses Durchgangs.
+Without looking at the screen, only TalkBack, sound and double tap. No ADB, no UI automation during this run.
 
-| Nr. | Aufgabe | Erwartung | Ergebnis |
+| No. | Task | Expectation | Result |
 | --- | --- | --- | --- |
-| 1 | App starten, „Leseprobe“ aktivieren | Titel und drei Abschnitte werden angesagt | |
-| 2 | „Vorlesen“ per Doppeltipp | Innerhalb weniger Sekunden beginnt „Abschnitt 1 von 3: Ankommen.“, dann der Text | |
-| 3 | 20 Sekunden zuhören, dann Menü-Ansage durch TalkBack auslösen (Fokus bewegen) | Buch setzt nach der Ansage fort, Taste bleibt „Pause“ | |
-| 4 | „Pause“ per Doppeltipp, TalkBack-Ansage abwarten | Bleibt pausiert, Taste zeigt „Vorlesen“ | |
-| 5 | „30 Sekunden zurück“ | Ansage der Sprungweite, Wiedergabe springt korrekt, auch über die Kapitelansage hinweg | |
-| 6 | Bis zum Ende von „Ankommen“ hören | „Abschnitt 2 von 3: Unterwegs.“ folgt ohne Eingabe und ohne TalkBack-Ansage | |
-| 7 | Bildschirm ausschalten, Kopfhörer: Weiter-Taste bzw. Doppelklick | Nächstes Kapitel wird angesagt und gespielt | |
-| 8 | Kopfhörer: Zurück-Taste zweimal kurz nacheinander | Erst Kapitelanfang, dann vorheriges Kapitel | |
-| 9 | Benachrichtigung öffnen | Fünf Tasten: Zurück, 30 s zurück, Pause, 30 s vor, Weiter, jede mit TalkBack benannt | |
-| 10 | Letztes Kapitel zu Ende hören | Wiedergabe endet, Taste „Vorlesen“, erneutes Aktivieren startet das Kapitel von vorn | |
-| 11 | App schließen und neu öffnen, „Vorlesen“ | Fortsetzung an der letzten Stelle | |
-| 12 | App aus der Übersicht entfernen, während sie spielt | Aktuelles Kapitel spielt zu Ende, kein Weiterlesen (bekannte Grenze) | |
+| 1 | Start the app, activate „Leseprobe“ | The title and three sections are announced | |
+| 2 | „Vorlesen“ by double tap | Within a few seconds „Abschnitt 1 von 3: Ankommen.“ starts, then the text | |
+| 3 | Listen for 20 seconds, then trigger a menu announcement by TalkBack (move the focus) | The book continues after the announcement, the button stays „Pause“ | |
+| 4 | „Pause“ by double tap, wait for the TalkBack announcement | It stays paused, the button shows „Vorlesen“ | |
+| 5 | „30 Sekunden zurück“ | The jump distance is announced, playback jumps correctly, also across the chapter announcement | |
+| 6 | Listen until the end of „Ankommen“ | „Abschnitt 2 von 3: Unterwegs.“ follows without input and without a TalkBack announcement | |
+| 7 | Switch off the screen, headphones: forward button or double click | The next chapter is announced and played | |
+| 8 | Headphones: back button twice in quick succession | First the start of the chapter, then the previous chapter | |
+| 9 | Open the notification | Five buttons: Zurück, 30 s zurück, Pause, 30 s vor, Weiter, each one named by TalkBack | |
+| 10 | Listen to the last chapter until the end | Playback ends, the button shows „Vorlesen“, activating it again starts the chapter from the beginning | |
+| 11 | Close the app and open it again, „Vorlesen“ | It continues at the last position | |
+| 12 | Remove the app from the overview while it is playing | The current chapter plays to the end, no further reading (known limit) | |
 
-Jede Sackgasse, unklare Ansage und unnötige Wischbewegung wird notiert.
+Every dead end, every unclear announcement and every unnecessary swipe is noted.
 
-## Noch offen
+## Still open
 
-- Der manuelle TalkBack-Durchgang oben und die Spracheingabe über das Mac-Mikrofon.
-- Ein echtes Android-Gerät. Dort zusätzlich: Bluetooth-Kopfhörer, Bildschirmabschaltung, Telefonanruf, Akkumanagement.
-- Der Hörtest der Testnutzerin. Erst danach lohnen Stimmenvergleich und OCR.
-- Bekannte Grenze: Nach dem Entfernen der App aus der Übersicht laufen Kapitelwechsel per Medientaste und automatisches Weiterlesen nicht mehr, weil beides im ViewModel liegt. Dokument und Audioerzeugung in den Dienst zu verlegen ist der nächste größere Umbau.
+- The manual TalkBack run above and voice input through the Mac microphone.
+- A real Android device. There in addition: Bluetooth headphones, screen switching off, a phone call, battery management.
+- The listening test by the test reader. Only after that are a voice comparison and OCR worthwhile.
+- Known limit: after the app is removed from the overview, chapter changes by media key and automatic further reading no longer work, because both live in the ViewModel. Moving the document and the audio generation into the service is the next larger rebuild.

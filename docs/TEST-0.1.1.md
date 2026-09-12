@@ -1,36 +1,36 @@
-# Testprotokoll 0.1.1
+# Test protocol 0.1.1
 
-Datum: 11. September 2026
+Date: 11 September 2026
 
-## Fehler und Korrektur
+## Fault and correction
 
-Beim Start der Leseprobe unter aktiviertem TalkBack wechselte die fokussierte Taste zwischen „Pause“ und „Vorlesen“. TalkBack kündigte den Zustandswechsel an und unterbrach dadurch wieder die Buchwiedergabe. Vor der Korrektur waren nach etwa 13 Sekunden seit dem Start nur ungefähr 1,3 Sekunden Buchaudio abgespielt. Das Android-Audiofokusprotokoll zeigte wiederholte Anfragen und Freigaben durch TalkBack.
+When the sample reading started with TalkBack switched on, the focused button alternated between „Pause“ and „Vorlesen“. TalkBack announced the state change and by doing so interrupted the book playback again. Before the correction, only about 1.3 seconds of book audio had played about 13 seconds after the start. The Android audio focus log showed repeated requests and releases by TalkBack.
 
-Die App unterschied bisher nicht zwischen dem Wiedergabewunsch und tatsächlich laufendem Audio. Nun steuern `playWhenReady` und der Lade-/Endzustand die Taste und die Umschaltaktion. Eine kurze Unterbrechung durch TalkBack ändert die Tastenbeschriftung nicht. Die automatische Audiofokusverwaltung von Media3 bleibt aktiv. Es gibt keinen Timer, der eine bewusste Pause überschreibt.
+Until now the app did not distinguish between the request to play and audio that was actually running. Now `playWhenReady` and the loading/end state drive the button and the toggle action. A short interruption by TalkBack does not change the button label. The automatic audio focus handling of Media3 stays active. There is no timer that overrides a deliberate pause.
 
-## Umgebung
+## Environment
 
-- Mac mini M1, Pixel-8a-Emulator, Android 17, API 37, ARM64.
-- TalkBack 17.0.0.889642762, Deutsch, mit aktivierter Touch-Erkundung.
-- App 0.1.1, Versionscode 2, lokale deutsche Android-Stimme, Leseprobe „Ankommen“ bei einfachem Tempo.
+- Mac mini M1, Pixel 8a emulator, Android 17, API 37, ARM64.
+- TalkBack 17.0.0.889642762, German, with touch exploration enabled.
+- App 0.1.1, version code 2, local German Android voice, sample reading „Ankommen“ at normal speed.
 - Java 17, Gradle 8.13, Android SDK 36.
 
-## Ergebnisse
+## Results
 
-| Prüfung | Ergebnis |
+| Check | Result |
 | --- | --- |
-| Debug-App und Test-App bauen | bestanden |
-| Android Lint | keine Fehler, bestehende Hinweise bleiben |
-| Fünf Kernlogiktests | bestanden, keine übersprungen |
-| Vier neue Gerätetests für Audiofokus, Pause und Kapitelende | bestanden |
-| Fünf bisherige Gerätetests für PDF-Import, Oberfläche, Wiedergabe, Sprünge und Audio-Cache | bestanden |
-| Wiedergabe bei eingeschaltetem und gebundenem TalkBack | nach der anfänglichen Ansage stabil; fünf Statusproben über 20 Sekunden durchgehend PLAYING, Position von 12.915 auf 33.927 ms |
-| Aktualisierte APK im Emulator installieren | erfolgreich, ohne Löschen der App-Daten |
+| Build the debug app and the test app | passed |
+| Android Lint | no errors, the existing hints remain |
+| Five core logic tests | passed, none skipped |
+| Four new instrumented tests for audio focus, pause and chapter end | passed |
+| Five existing instrumented tests for PDF import, user interface, playback, jumps and audio cache | passed |
+| Playback with TalkBack switched on and bound | stable after the initial announcement; five status samples over 20 seconds consistently PLAYING, position from 12,915 to 33,927 ms |
+| Install the updated APK on the emulator | successful, without deleting the app data |
 
-Die vier neuen Fokusprüfungen benötigen 36,478 Sekunden, die fünf bisherigen Gerätetests 15,480 Sekunden. Die normalen Gerätetests ersetzen keine vollständige TalkBack-Gestenprüfung.
+The four new focus checks take 36.478 seconds, the five existing instrumented tests 15.480 seconds. The normal instrumented tests do not replace a full TalkBack gesture check.
 
-## Noch offen
+## Still open
 
-Der abschließende manuelle Durchgang mit sicher auf der Taste liegendem TalkBack-Fokus, Doppeltipp und erneutem Pausieren konnte nicht vollständig beendet werden, da der Emulator währenddessen geschlossen wurde. Die oben protokollierte stabile Wiedergabe erfolgte mit aktivem TalkBack, die Touch-Eingaben wurden jedoch über ADB eingespeist. Das ist kein vollständiger Nachweis der menschlichen Doppeltipp-Bedienung.
+The final manual run with the TalkBack focus reliably on the button, a double tap and pausing again could not be completed, because the emulator was closed while it was running. The stable playback logged above happened with TalkBack active, but the touch input was injected through ADB. That is not full proof of double tap operation by a human.
 
-Ein erneuter Hörtest durch den Entwickler und später durch die Testnutzerin bleibt nötig. Die Korrektur ändert weder Stimmenqualität noch Cloud-Anbindung. PDF-OCR, echte Geräte und Mikrofonprüfung bleiben außerhalb dieses Fixes.
+A further listening test by the developer and later by the test reader is still needed. The correction changes neither voice quality nor cloud connectivity. PDF OCR, real devices and the microphone check stay outside this fix.

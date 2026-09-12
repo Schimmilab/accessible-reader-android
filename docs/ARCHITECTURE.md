@@ -1,97 +1,105 @@
-# Grundgerüst 0.4
+# Architecture 0.6
 
-Stand: 12. September 2026 (wählbare Sprachmaschine, Bibliothek, Selbstdiagnose, getrennte Ansagestimme)
+> German strings quoted in this document are the app's own wording. The README section "Another language" translates the ones that recur.
 
-## Zuständigkeiten
+Status: 12 September 2026 (selectable speech engine, library, self-diagnosis, separate announcement voice, text recognition for scans, text cleanup for print typesetting)
 
-| Teil | Aufgabe |
+## Responsibilities
+
+| Part | Task |
 | --- | --- |
-| `core/ReaderModels.kt` | Dokument und Kapitel, Textaufteilung, deutsche Befehle, Zeitpositionen über Audiodateien hinweg |
-| `core/Library.kt` | Bibliothekseintrag und seine gesprochene Beschriftung |
-| `core/SpeechReport.kt` | Befund der Selbstdiagnose und dessen Textfassung |
-| `data/DocumentStore.kt` | PDF-Import, Seiten und Lesezeichen, private lokale JSON-Dateien, Bibliotheksliste |
-| `speech/SpeechProvider.kt` | Austauschbare Audioerzeugung, lokale Android-TTS-Implementierung, Cache |
-| `speech/SpeechProbe.kt` | Prüft eine einzelne installierte Sprachmaschine für die Selbstdiagnose |
-| `playback/ReaderPlaybackService.kt` | Media3-Wiedergabe, Audiofokus, Medienbenachrichtigung, Speichern während Hintergrundwiedergabe, Kapitel-Semantik für Medientasten (`ChapterPlayer`) |
-| `ReaderViewModel.kt` | Import- und Wiedergabezustand, Vorbereitung eines Kapitels, Navigation |
-| `MainActivity.kt` | Dateiauswahl, Teilen-Intents, Berechtigungen, lokale Spracherkennung |
-| `ui/ReaderScreen.kt` | Compose-Oberfläche und TalkBack-Semantik |
+| `core/ReaderModels.kt` | Document and chapter, text splitting, German commands, time positions across audio files |
+| `core/Library.kt` | Library entry and its spoken label |
+| `core/SpeechReport.kt` | Result of the self-diagnosis and its text form |
+| `data/DocumentStore.kt` | PDF import, pages and bookmarks, private local JSON files, library list |
+| `data/PageOcr.kt` | Renders a page without a text layer and recognizes the writing on it, entirely on the device |
+| `speech/SpeechProvider.kt` | Interchangeable audio generation, local Android TTS implementation, cache |
+| `speech/SpeechProbe.kt` | Checks a single installed speech engine for the self-diagnosis |
+| `playback/ReaderPlaybackService.kt` | Media3 playback, audio focus, media notification, saving during background playback, chapter semantics for media keys (`ChapterPlayer`) |
+| `ReaderViewModel.kt` | Import and playback state, preparation of a chapter, navigation |
+| `MainActivity.kt` | File picker, share intents, permissions, local speech recognition |
+| `ui/ReaderScreen.kt` | Compose user interface and TalkBack semantics |
 
-## Weg vom PDF zum Audio
+## Path from PDF to audio
 
-Die Dateiauswahl gibt einen URI frei. Der Import kopiert den Inhalt in eine temporäre Datei, begrenzt die Dateigröße und extrahiert den Text seitenweise mit PDFBox-Android. Die temporäre Originaldatei wird anschließend entfernt. Der extrahierte Text bleibt im privaten App-Speicher. Die App fordert keine pauschale Speicherfreigabe an.
+The file picker grants a URI. The import copies the content into a temporary file, limits the file size and extracts the text page by page with PDFBox-Android. The temporary original file is removed afterwards. The extracted text stays in private app storage. The app does not request a blanket storage permission.
 
-Lesezeichen liefern Abschnittsanfänge. Ohne Lesezeichen werden Seiten zu Abschnitten. Die App rät keine Überschriften. Seiten ohne Text werden gemeldet, Passwortschutz und nicht erlaubte Textextraktion führen zu einer verständlichen Fehlermeldung.
+A page that comes back without any text is handed to `PageOcr`. It renders the page with `PdfRenderer` and recognizes the writing with the ML Kit Latin model that ships inside the APK, at about 1.2 seconds per page. Nothing leaves the device, and the manifest removes the network permissions the recognition library declares. A book where neither extraction nor recognition finds writing after a sample of 25 pages is refused, rather than after being read to the end.
 
-Der Player teilt ein Kapitel in höchstens 1.000 UTF-16-Zeichen lange Stücke, vorzugsweise an Satz- oder Wortgrenzen. `SpeechProvider` erzeugt eine Audiodatei pro Stück. Android-TTS darf hier nur Stimmen verwenden, die keinen Netzwerkzugriff verlangen. Das erzeugte Audio wird auf eine positive Dauer geprüft und erst danach unter seinem endgültigen Cache-Namen abgelegt.
+Every page then goes through `TextChunks.clean`, and the order of its steps carries weight. Whitespace is collapsed, the running page number on the first or last line is dropped, and only then are hyphens repaired. Repairing first would glue the page number onto the word that the page break cut in half, which is what a listener heard as "chao einundzwanzig tisch". Print typesetting wraps with a soft hyphen and some older books use `¬` for the same job, so both are treated as line-end hyphens. `TextChunks.joinPages` puts a word back together across a page boundary, which is why a trailing soft hyphen survives the cleanup.
 
-Die Wiedergabe beginnt, sobald ab der Startposition ein Mindestvorlauf von `MIN_LEAD_MS` (12 Sekunden) Audio bereitliegt oder alle Teile fertig sind. Da die Kapitelansage (Teil 0) nur rund drei Sekunden dauert, wird so vor dem Start immer mindestens der erste Textteil mitvorbereitet. Ohne diesen Vorlauf lief der Player die kurze Ansage leer, bevor der Textteil synthetisiert war, und erzeugte eine hörbare Pause. Die restlichen Teile werden im selben Job erzeugt und mit `addMediaItem` angehängt. `ReaderState.preparing` bleibt so lange gesetzt; `busy` endet mit dem Start der Wiedergabe, damit alle Tasten bedienbar bleiben. Während der Hintergrundaufbereitung wird der Status nicht aktualisiert, weil jede Live-Region-Ansage von TalkBack das Buch unterbrechen würde. Läuft der Player vor dem nächsten Teil leer, zählt das nicht als Kapitelende: Die Taste bleibt auf Pause und der neue Teil wird nach dem Anhängen abgespielt, sofern nicht bewusst pausiert wurde. Kapitel-, Stimmen- und Dokumentwechsel sowie das Leeren des Caches brechen die laufende Aufbereitung ab.
+Bookmarks provide section starts. Without bookmarks, pages become sections. The app does not guess headings. Pages without text are reported, password protection and text extraction that is not allowed lead to an understandable error message.
 
-Teil 0 jedes Kapitels ist immer die gesprochene Kapitelansage aus `ChapterAnnouncement`. Sie ist ein normaler Audioteil in der Buchstimme, damit gespeicherte Teilindizes stabil bleiben und die Ansage auch ohne TalkBack, bei ausgeschaltetem Bildschirm und über Kopfhörer zu hören ist. Erreicht der Player das Ende eines vollständig vorbereiteten Kapitels bei aktivem `playWhenReady`, wählt `syncPlayer` das nächste Kapitel ohne Statusänderung (`chapter(index, announce = false)`, `play(quiet = true)`) und startet es. Im letzten Kapitel bleibt das bisherige Verhalten: Ende, Taste „Vorlesen“, Neustart von vorn.
+The player splits a chapter into parts of at most 1,000 UTF-16 characters, preferably at sentence or word boundaries. `SpeechProvider` creates one audio file per part. Android TTS may only use voices here that do not require network access. The generated audio is checked for a positive duration and only then stored under its final cache name.
 
-Media3 erhält die vorbereiteten Dateien und ihre Metadaten. Die App berechnet Sprünge aus der Summe der tatsächlichen Audiodauern. Ein 30-Sekunden-Sprung ist unabhängig von Textlänge und Sprechtempo. Er meint 30 Sekunden auf der Original-Audiozeitleiste.
+Playback starts as soon as a minimum lead of `MIN_LEAD_MS` (12 seconds) of audio is ready from the start position on, or all parts are finished. Since the chapter announcement (part 0) lasts only about three seconds, at least the first text part is always prepared along with it before the start. Without this lead the player ran the short announcement dry before the text part was synthesized, and produced an audible pause. The remaining parts are generated in the same job and appended with `addMediaItem`. `ReaderState.preparing` stays set for that long; `busy` ends when playback starts, so that all buttons remain operable. During the background preparation the status is not updated, because every live region announcement from TalkBack would interrupt the book. If the player runs dry before the next part, that does not count as the end of the chapter: the button stays on pause and the new part is played after it has been appended, unless the user paused deliberately. Chapter, voice and document changes as well as clearing the cache abort the running preparation.
 
-### Medientasten und Benachrichtigung
+Part 0 of every chapter is always the spoken chapter announcement from `ChapterAnnouncement`. It is a normal audio part in the book voice, so that saved part indexes stay stable and the announcement can also be heard without TalkBack, with the screen switched off and over headphones. If the player reaches the end of a fully prepared chapter while `playWhenReady` is active, `syncPlayer` selects the next chapter without a status change (`chapter(index, announce = false)`, `play(quiet = true)`) and starts it. In the last chapter the previous behaviour stays: end, button „Vorlesen“, restart from the beginning.
 
-Die MediaSession bekommt nicht den ExoPlayer direkt, sondern `ChapterPlayer`, einen `ForwardingSimpleBasePlayer`. Für Medientasten, Bluetooth und die Benachrichtigung ist damit eine Playlist ein Kapitel: `seekBack`/`seekForward` rechnen mit `AudioTimeline` über alle Teile, „Weiter“ und „Zurück“ werden in `handleSeek` abgefangen. „Zurück“ folgt der Media3-Regel: mehr als drei Sekunden im Kapitel springt an den Kapitelanfang, sonst ins vorherige Kapitel. Der Dienst kennt keine Kapitel und kann kein Audio erzeugen; er sendet deshalb `COMMAND_NEXT_CHAPTER` bzw. `COMMAND_PREVIOUS_CHAPTER` als Custom Command an die verbundenen Controller, und das ViewModel führt `chapter()` aus. Damit „Weiter“ auch auf dem letzten Teil verfügbar bleibt, meldet `getState()` die Befehle immer und gibt nach außen `REPEAT_MODE_ALL` an; der ExoPlayer selbst wiederholt nicht. Die Benachrichtigung zeigt über `setMediaButtonPreferences` zusätzlich 30 Sekunden vor und zurück.
+Media3 receives the prepared files and their metadata. The app computes jumps from the sum of the actual audio durations. A 30 second jump is independent of text length and speaking rate. It means 30 seconds on the original audio timeline.
 
-Folge: Kapitelwechsel per Medientaste und das automatische Weiterlesen setzen ein lebendes ViewModel voraus. Nach dem Entfernen der App aus der Übersicht läuft nur das aktuelle Kapitel zu Ende. Die saubere Lösung, Dokument und Audioerzeugung in den Dienst zu verlegen, ist eine spätere Ausbaustufe.
+### Media keys and notification
 
-Ein leerer Puffer meldet denselben Playerzustand wie ein echtes Kapitelende. Der Dienst darf daraus also nicht auf „fertig" schließen, denn ein so markiertes Kapitel beginnt beim nächsten Start von vorn statt fortzusetzen. Das ViewModel setzt deshalb während der Aufbereitung das Kennzeichen `KEY_PREPARING` in den Einstellungen, und der Dienst schreibt `finished` nur, wenn es nicht gesetzt ist. Ein frisch erzeugtes ViewModel löscht das Kennzeichen, falls ein beendeter Prozess es stehen ließ.
+The MediaSession does not get the ExoPlayer directly, but `ChapterPlayer`, a `ForwardingSimpleBasePlayer`. For media keys, Bluetooth and the notification a playlist is therefore one chapter: `seekBack`/`seekForward` compute with `AudioTimeline` across all parts, "next" and "previous" are intercepted in `handleSeek`. "Previous" follows the Media3 rule: more than three seconds into the chapter jumps to the start of the chapter, otherwise to the previous chapter. The service does not know chapters and cannot generate audio; it therefore sends `COMMAND_NEXT_CHAPTER` or `COMMAND_PREVIOUS_CHAPTER` as a custom command to the connected controllers, and the ViewModel runs `chapter()`. So that "next" also stays available on the last part, `getState()` always reports the commands and announces `REPEAT_MODE_ALL` to the outside; the ExoPlayer itself does not repeat. The notification additionally shows 30 seconds forward and back via `setMediaButtonPreferences`.
 
-Der Dienst speichert Dokument, Kapitel, Audiodatei, Offset und Stimme etwa einmal pro Sekunde. Er arbeitet auch weiter, wenn die Activity geschlossen wird. Nach einem Prozessneustart wird beim nächsten Start des Vorlesens der Cache aufgebaut oder wiedergefunden und die letzte Position wiederhergestellt.
+Consequence: chapter changes by media key and the automatic continuation require a live ViewModel. After the app is removed from the recents overview, only the current chapter plays to its end. The clean solution, moving document and audio generation into the service, is a later stage of expansion.
 
-## Bibliothek
+An empty buffer reports the same player state as a real end of a chapter. The service must therefore not conclude "finished" from it, because a chapter marked that way starts from the beginning on the next start instead of resuming. During the preparation the ViewModel therefore sets the flag `KEY_PREPARING` in the preferences, and the service writes `finished` only when it is not set. A freshly created ViewModel clears the flag in case a terminated process left it behind.
 
-Jedes importierte Dokument liegt als `<id>.json` mit dem vollständigen Text im privaten Speicher. Die Bibliothek liest diese Dateien nicht, sondern je eine kleine Begleitdatei `<id>.meta.json` mit Titel, Anzahl der Abschnitte und Zeitpunkt des Imports. Sonst müsste das Öffnen der Liste bei zehn Büchern zehn vollständige Texte einlesen, bis zu einer Million Zeichen je Dokument. Dokumente aus älteren Versionen haben noch keine Begleitdatei; sie wird beim ersten Auflisten einmalig nachgeschrieben.
+The service saves document, chapter, audio file, offset and voice about once per second. It keeps working even when the activity is closed. After a process restart, the cache is built or found again the next time reading aloud starts, and the last position is restored.
 
-Die Hörposition steht weiterhin in den Einstellungen unter `<id>.chapter` und Geschwistern. Ob ein Dokument schon gehört wurde, erkennt die App daran, dass der Dienst `<id>.voice` geschrieben hat. `libraryLabel` baut daraus die gesprochene Zeile: Titel, Anzahl der Abschnitte, und wo die Nutzerin aufgehört hat.
+## Library
 
-Entfernen löscht den extrahierten Text, die Begleitdatei und die Hörposition. Die PDF-Datei der Nutzerin bleibt unangetastet, die App hat sie nie besessen. Erzeugtes Audio bleibt im Cache, weil dieser nach Text und Stimme adressiert ist und nicht nach Dokument; er wird über „Erzeugtes Audio löschen“ oder die 500-MB-Grenze abgeräumt.
+Every imported document sits in private storage as `<id>.json` with the complete text. The library does not read these files. It reads one small side file `<id>.meta.json` each, with title, number of sections and time of the import. Otherwise opening the list with ten books would have to read in ten complete texts, up to one million characters per document. Documents from older versions do not have a side file yet; it is written once when they are first listed.
 
-Weil Entfernen nicht rückgängig zu machen ist, fragt die App vorher nach. Die bestätigende Taste heißt „Ja, entfernen“ und nicht noch einmal „Entfernen“, damit sie sich beim Anhören von der Taste in der Liste unterscheidet.
+The listening position is still in the preferences under `<id>.chapter` and its siblings. The app recognizes that a document has already been listened to by the fact that the service has written `<id>.voice`. `libraryLabel` builds the spoken line from that: title, number of sections, and where the user stopped.
 
-## Sprache und Datenschutz
+Removing deletes the extracted text, the side file and the listening position. The user's PDF file stays untouched, the app never owned it. Generated audio stays in the cache, because the cache is addressed by text and voice and not by document; it is cleared through „Erzeugtes Audio löschen“ or the 500 MB limit.
 
-### TalkBack und Wiedergabezustand
+Because removing cannot be undone, the app asks first. The confirming button is called „Ja, entfernen“ and not „Entfernen“ a second time, so that it differs from the button in the list when heard.
 
-`ReaderState.playing` beschreibt tatsächlich laufendes Audio. `playbackRequested` beschreibt dagegen, ob der Player auf Wunsch des Nutzers abspielen soll. Die Vorlesen/Pause-Taste und die Kapitelwechsel richten sich nach `playWhenReady`, außer im Leerlauf und am Kapitelende. Player-Ereignisse aktualisieren den Zustand sofort; die halbe Sekunde Abfrageintervall bleibt für die Zeitposition bestehen.
+## Speech and privacy
 
-Media3 darf bei einer TalkBack-Ansage den Audiostrom vorübergehend anhalten. Dadurch darf sich die fokussierte Taste nicht zwischen „Vorlesen“ und „Pause“ ändern, sonst liest TalkBack den neuen Zustand erneut vor und unterbricht das Buch wieder. Es gibt keine selbst gebaute Wiederanlauf-Zeitsteuerung. Media3 verwaltet den Audiofokus weiterhin, einschließlich dauerhaften Fokusverlusts und bewusstem Pausieren während einer Ansage.
+### TalkBack and playback state
 
-Grundlage: [Media3-Player-Ereignisse und Unterschied zwischen playWhenReady und isPlaying](https://developer.android.com/media/media3/exoplayer/listening-to-player-events).
+`ReaderState.playing` describes audio that is actually running. `playbackRequested` by contrast describes whether the player should play at the user's request. The read aloud/pause button and the chapter changes follow `playWhenReady`, except when idle and at the end of a chapter. Player events update the state immediately; the half second polling interval stays in place for the time position.
 
-### Gesprochene Ansagen der App
+Media3 may stop the audio stream briefly during a TalkBack announcement. Because of that the focused button must not change between „Vorlesen“ and „Pause“, otherwise TalkBack reads the new state out again and interrupts the book once more. There is no self-built resume timer. Media3 still manages the audio focus, including permanent focus loss and deliberate pausing during an announcement.
 
-`AndroidSpeechProvider` hält zwei TextToSpeech-Instanzen. Die erste schreibt Kapitelaudio in Dateien, die zweite spricht kurze Rückmeldungen. Eine einzelne Instanz kann nicht gleichzeitig sprechen und eine Datei schreiben; solange beide sich eine teilten, verschluckte die App jede Ansage, während im Hintergrund ein Kapitel vorbereitet wurde. Seit der fortlaufenden Aufbereitung sind die Tasten in dieser Zeit bedienbar, der Fehler wurde dadurch sichtbar.
+Basis: [Media3 player events and the difference between playWhenReady and isPlaying](https://developer.android.com/media/media3/exoplayer/listening-to-player-events).
 
-Ob eine Ansage gesprochen oder nur in die Live-Region geschrieben wird, entscheidet `screenReaderActive()` über `AccessibilityManager.isTouchExplorationEnabled`. Läuft TalkBack, liest es den Statustext ohnehin vor; zusätzlich in der Buchstimme zu sprechen würde jede Meldung verdoppeln. „Inhaltsverzeichnis vorlesen“ und die Hörprobe sprechen dagegen immer in der Buchstimme, weil genau das ihr Zweck ist, und setzen keinen Status.
+### Spoken announcements of the app
 
-### Wahl der Sprachmaschine
+`AndroidSpeechProvider` holds two TextToSpeech instances. The first writes chapter audio into files, the second speaks short feedback. A single instance cannot speak and write a file at the same time; as long as both shared one, the app swallowed every announcement while a chapter was being prepared in the background. Since progressive preparation the buttons are operable during that time, which made the bug visible.
 
-Die App nimmt nicht die vom System voreingestellte Sprachmaschine, sondern eine gespeicherte Auswahl unter `engine`; ist keine gesetzt, gilt die Voreinstellung. Grund ist der Befund vom Zielgerät, siehe [Entscheidung 0003](decisions/0003-sprachmaschine-waehlbar.md): Die dort voreingestellte Maschine meldet über `getVoices()` keine einzige Stimme, obwohl sie fließend Deutsch spricht.
+`screenReaderActive()` decides through `AccessibilityManager.isTouchExplorationEnabled` whether an announcement is spoken or only written into the live region. If TalkBack is running it reads the status text out anyway; speaking in the book voice as well would double every message. „Inhaltsverzeichnis vorlesen“ and the sample reading always speak in the book voice, because that is exactly their purpose, and they set no status.
 
-`AndroidSpeechProvider.voices()` fragt deshalb zweistufig. Liefert `getVoices()` deutsche Offline-Stimmen, werden diese benannt angeboten. Andernfalls entscheidet `isLanguageAvailable(Locale.GERMAN)`, und bei Verfügbarkeit erscheint ein einzelner Eintrag `ENGINE_DEFAULT_VOICE` mit der Beschriftung „Standardstimme dieser Sprachausgabe“. Beim Erzeugen wird dann `setLanguage` statt `setVoice` benutzt.
+### Choice of the speech engine
 
-Der Cache-Schlüssel enthält die tatsächlich benutzte Maschine, nicht mehr die Systemvoreinstellung. Sonst würde nach einem Wechsel der Maschine das Audio der alten weiterverwendet.
+The app does not take the speech engine preset by the system, but a saved selection under `engine`; if none is set, the system default applies. The reason is the finding on the target device, see [Decision 0003](decisions/0003-selectable-speech-engine.md): the engine preset there reports not a single voice through `getVoices()`, although it speaks fluent German.
 
-`SpeechProbe` prüft für die Diagnose jede installierte Maschine einzeln, jeweils mit eigener kurzlebiger TextToSpeech-Instanz: Startet sie, kann sie Deutsch, welche Stimmen meldet sie, und schreibt sie Audio in eine Datei. Android ersetzt ein unbekanntes Maschinen-Paket stillschweigend durch die Voreinstellung, statt zu scheitern; deshalb kann eine gespeicherte Auswahl die App auch nach Deinstallation dieser Maschine nicht unbrauchbar machen.
+`AndroidSpeechProvider.voices()` therefore asks in two stages. If `getVoices()` delivers German offline voices, these are offered by name. Otherwise `isLanguageAvailable(Locale.GERMAN)` decides, and if it is available a single entry `ENGINE_DEFAULT_VOICE` appears with the label „Standardstimme dieser Sprachausgabe“. During generation `setLanguage` is then used instead of `setVoice`.
 
-### Spracheingabe und lokale Daten
+The cache key contains the engine actually in use, no longer the system default. Otherwise the audio of the old engine would keep being used after an engine change.
 
-`SpeechRecognizer.createOnDeviceSpeechRecognizer` wird ab Android 12 benutzt. Die Sprachbefehle werden lokal auf bekannte Aktionen abgebildet. Die Aufnahme beginnt nur auf Tastendruck und pausiert das Buch. Bei fehlenden Sprachdaten werden die beschrifteten Tasten angeboten. Es gibt keine Abhängigkeit von der systemweiten Voice-Access-App.
+For the diagnosis `SpeechProbe` checks every installed engine one at a time, each with its own short-lived TextToSpeech instance: does it start, does it know German, which voices does it report, and does it write audio into a file. Android silently replaces an unknown engine package with the default instead of failing; a saved selection therefore cannot make the app unusable even after that engine has been uninstalled.
 
-Die Haupt-App hat keine Internetberechtigung. Cloud-Anbieter sind ausschließlich als spätere Implementierungen der Anbieterschnittstelle vorgesehen. Vor deren Integration müssen Zustimmung, Kostenlimit und Zugriffsschlüssel separat umgesetzt werden.
+### Voice input and local data
 
-## Bewusste Zwischenlösungen
+`SpeechRecognizer.createOnDeviceSpeechRecognizer` is used from Android 12 on. The voice commands are mapped locally to known actions. The recording starts only on a button press and pauses the book. If speech data is missing, the labelled buttons are offered. There is no dependency on the system-wide Voice Access app.
 
-JSON und private Einstellungen reichen für den ersten Reader. Room wird nötig, sobald Bibliothek, Suche und Lesezeichen hinzukommen. WorkManager und fortlaufende Audioaufbereitung folgen für große Dokumente. Die aktuelle Version spielt jeweils ein vorbereitetes Kapitel ab.
+The main app has no internet permission. Cloud providers are planned exclusively as later implementations of the provider interface. Before they are integrated, consent, cost limit and access key have to be implemented separately.
 
-## Abhängigkeiten
+## Deliberate interim solutions
 
-- Android Gradle Plugin 9.4.0, Gradle 9.6.0 und Java 17. Der Upgrade-Assistent von Android Studio hat in `gradle.properties` Kompatibilitäts-Flags für das alte DSL-Verhalten gesetzt (`android.newDsl=false`, `android.builtInKotlin=false` u. a.); sie bleiben, bis das Projekt bewusst auf das neue DSL umgestellt wird.
-- Kotlin 2.2.21, Compose BOM 2026.01.00, Activity 1.12.3 und Lifecycle 2.10.0.
-- [Media3](https://developer.android.com/jetpack/androidx/releases/media3) 1.9.2 für Audio und MediaSession.
-- [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android) 2.0.27.0 für den prototypischen Textimport.
+JSON and private preferences are enough for the first reader. Room becomes necessary as soon as library, search and bookmarks are added. WorkManager and progressive audio preparation follow for large documents. The current version plays one prepared chapter at a time.
 
-PDFBox-Android hat einen älteren Release-Stand. Vor einer öffentlichen Version werden Parser und transitive Kryptografie-Abhängigkeiten erneut bewertet. Die Abhängigkeits- und App-Lizenzprüfung steht vor der Veröffentlichung noch aus. Es werden keine Stimmenmodelle mitgeliefert.
+## Dependencies
+
+- Android Gradle Plugin 9.4.0, Gradle 9.6.0 and Java 17. The upgrade assistant of Android Studio set compatibility flags for the old DSL behaviour in `gradle.properties` (`android.newDsl=false`, `android.builtInKotlin=false` and others); they stay until the project is deliberately moved to the new DSL.
+- Kotlin 2.2.21, Compose BOM 2026.01.00, Activity 1.12.3 and Lifecycle 2.10.0.
+- [Media3](https://developer.android.com/jetpack/androidx/releases/media3) 1.9.2 for audio and MediaSession.
+- [PDFBox-Android](https://github.com/TomRoush/PdfBox-Android) 2.0.27.0 for the prototype text import.
+- [ML Kit text recognition](https://developers.google.com/ml-kit/vision/text-recognition) 16.0.1, the bundled Latin variant, for scanned pages. The model is part of the APK, which is why the package grew from 19 to 60 MB. The library declares `INTERNET` and `ACCESS_NETWORK_STATE` in its own manifest; both are removed again in the app manifest with `tools:node="remove"`, and the built package is checked with `aapt2 dump permissions`.
+
+PDFBox-Android is at an older release level. Before a public version, the parser and the transitive cryptography dependencies are assessed again. No voice models are shipped; the only model in the package is the one for text recognition.

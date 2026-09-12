@@ -1,43 +1,43 @@
-# Testprotokoll 0.4.2
+# Test protocol 0.4.2
 
-Datum: 12. September 2026
+Date: 12 September 2026
 
-## Was neu ist
+## What is new
 
-1. Die Einfuhrgrenzen sind auf Buchgröße gebracht. Vorher 40 MB, 300 Seiten und eine Million Zeichen, jetzt 120 MB, 3.000 Seiten und sechs Millionen Zeichen. Anlass war der Versuch der Testnutzerin, einen Roman zu laden, der mit dem Hinweis auf 300 Seiten abgewiesen wurde.
-2. Erzeugtes Audio wird bei 500 MB automatisch aufgeräumt, das am längsten nicht Gehörte zuerst. Vorher verweigerte die Wiedergabe an dieser Grenze den Dienst und bat, den Cache von Hand zu leeren. Ein Buch dieser Länge erzeugt ein Vielfaches davon; Die Nutzerin wäre mitten im Buch stehengeblieben.
+1. The import limits are now sized for books. Previously 40 MB, 300 pages and one million characters, now 120 MB, 3,000 pages and six million characters. The trigger was the test reader's attempt to load a novel that was refused with a note about 300 pages.
+2. Generated audio is cleaned up automatically at 500 MB, the least recently heard first. Previously playback refused to work at this limit and asked for the cache to be emptied by hand. A book of this length generates a multiple of that; the user would have been stranded in the middle of the book.
 
-## Umgebung
+## Environment
 
-- Mac mini M1, Pixel-8a-Emulator, Android 17, API 37, ARM64, Google-Play-Abbild.
-- App 0.4.2, Versionscode 10.
+- Mac mini M1, Pixel 8a emulator, Android 17, API 37, ARM64, Google Play image.
+- App 0.4.2, version code 10.
 - Java 17, Gradle 9.6.0, Android Gradle Plugin 9.4.0, Android SDK 36.
-- ⛔ TalkBack für den automatischen Lauf abgeschaltet, siehe unten.
+- ⛔ TalkBack turned off for the automated run, see below.
 
-## Ergebnisse
+## Results
 
-| Prüfung | Ergebnis |
+| Check | Result |
 | --- | --- |
-| Debug-App und Test-App bauen, Android Lint | bestanden, Lint ohne Fehler |
-| Elf Kernlogiktests (JVM) | bestanden |
-| PdfImportTest, drei Prüfungen, neu: Import eines erzeugten 600-Seiten-PDF | bestanden, Import in 4,0 Sekunden, 600 Abschnitte |
-| SpeechAudioTest, sechs Prüfungen, neu: Cache räumt das am längsten nicht Gehörte weg, und lässt einen Cache im Budget in Ruhe | bestanden |
-| ProgressivePreparationTest, ResumePositionTest, PlaybackFocusTest, ReaderUiTest, MediaButtonTest, LibraryTest, LibraryUiTest, DiagnosticsTest | bestanden |
+| Build debug app and test app, Android Lint | passed, Lint without errors |
+| Eleven core logic tests (JVM) | passed |
+| PdfImportTest, three checks, new: import of a generated 600-page PDF | passed, import in 4.0 seconds, 600 sections |
+| SpeechAudioTest, six checks, new: the cache drops the least recently heard files, and leaves a cache within budget alone | passed |
+| ProgressivePreparationTest, ResumePositionTest, PlaybackFocusTest, ReaderUiTest, MediaButtonTest, LibraryTest, LibraryUiTest, DiagnosticsTest | passed |
 
-Summe: 30 Gerätetests in zehn Klassen, keine übersprungen.
+Total: 30 instrumented tests in ten classes, none skipped.
 
-## Der Befund, der am meisten Zeit gekostet hat
+## The finding that cost the most time
 
-Zwei Prüfungen aus `ProgressivePreparationTest` liefen wiederholt in ihre Zeitlimits. Der Verdacht lag zuerst beim knappen Arbeitsspeicher des Macs, dann bei den eigenen Änderungen. Beides war falsch.
+Two checks from `ProgressivePreparationTest` repeatedly ran into their time limits. The suspicion first fell on the Mac's tight memory, then on our own changes. Both were wrong.
 
-Das Protokoll der Sprachausgabe zeigte Lücken von 79 und 194 Sekunden, in denen die App überhaupt keine Synthese anforderte. Ursache: Auf dem Emulator war **TalkBack aktiv**. Es liest jede Änderung der Statuszeile vor und hält dafür den Audiofokus; die Wiedergabe wartet dann korrekt, nur eben minutenlang.
+The speech engine log showed gaps of 79 and 194 seconds in which the app requested no synthesis at all. The cause: **TalkBack was active** on the emulator. It reads every change of the status line aloud and holds the audio focus while doing so; playback then waits correctly, just for minutes.
 
-Mit abgeschaltetem TalkBack brauchen dieselben vier Prüfungen 43 bis 79 Sekunden statt über 250. Die Regel steht jetzt in [TESTING.md](TESTING.md) samt den beiden Befehlen zum Ab- und Anschalten.
+With TalkBack turned off the same four checks take 43 to 79 seconds instead of more than 250. The rule is now in [TESTING.md](TESTING.md) together with the two commands for turning it off and on.
 
-🎯 Die Lehre: Der automatische Test und der TalkBack-Handtest schließen sich aus. Das stand als Warnung schon im Protokoll zu 0.1.1, war aber nicht als Voraussetzung für jeden Lauf formuliert.
+🎯 The lesson: the automated test and the manual TalkBack test exclude each other. That was already in the protocol for 0.1.1 as a warning, but it was not phrased as a precondition for every run.
 
-## Noch offen
+## Still open
 
-- TalkBack ist auf dem Emulator derzeit abgeschaltet. Vor dem nächsten Handtest wieder einschalten.
-- Der manuelle Durchgang auf einem echten Gerät. Die Testnutzerin benutzt den Reader inzwischen täglich, ein förmliches Protokoll gibt es dafür nicht.
-- Ihre Stimmenwahl, siehe [VOICES.md](VOICES.md).
+- TalkBack is currently turned off on the emulator. Turn it back on before the next manual test.
+- The manual run on a real device. The test reader now uses the reader daily, and there is no formal protocol for that.
+- Her choice of voice, see [VOICES.md](VOICES.md).

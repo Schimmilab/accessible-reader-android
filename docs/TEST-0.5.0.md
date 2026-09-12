@@ -1,51 +1,51 @@
-# Testprotokoll 0.5.0
+# Test protocol 0.5.0
 
-Datum: 12. September 2026
+Date: 12 September 2026
 
-## Was neu ist
+## What is new
 
-Nur die Auslieferung, kein Verhalten. Erstmals ein mit eigenem Schlüssel signierter Release-Build statt eines Debug-Builds.
+Only the delivery, no behaviour. For the first time a release build signed with our own key instead of a debug build.
 
-- Signaturschlüssel angelegt, RSA 4096, gültig bis Januar 2054. Er liegt außerhalb des Repositories, das Verfahren steht in [RELEASING.md](RELEASING.md).
-- Signaturschemata v2 und v3. v3 hält den späteren Schlüsseltausch offen.
-- Minifizierung bleibt bewusst aus. Media3 und PDFBox arbeiten mit Reflexion, und ohne geprüfte Keep-Regeln würde ein Schrumpfen die Wiedergabe in einem Build brechen, den Nutzer nicht debuggen können.
+- Signing key created, RSA 4096, valid until January 2054. It lies outside the repository, the procedure is in [RELEASING.md](RELEASING.md).
+- Signature schemes v2 and v3. v3 keeps a later key rotation open.
+- Minification deliberately stays off. Media3 and PDFBox work with reflection, and without verified keep rules shrinking would break playback in a build that users cannot debug.
 
-## Umgebung
+## Environment
 
-- Mac mini M1, Pixel-8a-Emulator, Android 17, API 37, ARM64.
-- App 0.5.0, Versionscode 11, Release-Build.
-- TalkBack für die automatischen Läufe abgeschaltet.
+- Mac mini M1, Pixel 8a emulator, Android 17, API 37, ARM64.
+- App 0.5.0, version code 11, release build.
+- TalkBack turned off for the automated runs.
 
-## Prüfung des Pakets
+## Package checks
 
-| Prüfung | Ergebnis |
+| Check | Result |
 | --- | --- |
-| Signatur verifiziert | bestanden, Schema v2 und v3 |
-| Zertifikat stimmt mit dem Keystore überein | bestanden, SHA-256 `8ec34b04…32c800d8` |
-| `application-debuggable` | nicht vorhanden, wie es sein muss |
-| Version im Paket | 0.5.0, Code 11 |
-| Größe | 19,1 MB gegenüber 24,5 MB beim Debug-Build |
+| Signature verified | passed, scheme v2 and v3 |
+| Certificate matches the keystore | passed, SHA-256 `8ec34b04…32c800d8` |
+| `application-debuggable` | not present, as it must be |
+| Version in the package | 0.5.0, code 11 |
+| Size | 19.1 MB compared to 24.5 MB for the debug build |
 
-## Rauchtest des Release-Builds auf dem Gerät
+## Smoke test of the release build on the device
 
-Ein Release-Build ist ein anderer Build-Typ und war nie auf einem Gerät. Deshalb von Hand geprüft, nicht nur gebaut:
+A release build is a different build type and had never been on a device. So it was checked by hand, not only built:
 
-| Schritt | Ergebnis |
+| Step | Result |
 | --- | --- |
-| Installieren und starten | bestanden, keine Abstürze im Protokoll |
-| Berechtigung für Benachrichtigungen beim ersten Antippen von „Vorlesen" | erscheint wie erwartet, danach startet die Wiedergabe |
-| Leseprobe öffnen | bestanden, drei Abschnitte |
-| Audio erzeugen und abspielen | bestanden, sechs Synthesen, Position lief durchgehend hoch |
-| Automatisches Weiterlesen über alle drei Abschnitte | bestanden, endete auf „Abschnitt 3 von 3" |
-| Letztes Kapitel bleibt stehen und bietet Neustart | bestanden, Taste zeigt „Vorlesen" |
+| Install and start | passed, no crashes in the log |
+| Notification permission on the first tap of „Vorlesen" | appears as expected, then playback starts |
+| Open the sample reading | passed, three sections |
+| Generate and play audio | passed, six syntheses, the position kept counting up |
+| Automatic continuation across all three sections | passed, ended on „Abschnitt 3 von 3" |
+| The last chapter stops and offers a restart | passed, the button shows „Vorlesen" |
 
-⚠️ Beim Beobachten führte die Statuszeile zunächst in die Irre. Sie sagte weiterhin „Ankommen. Wiedergabe läuft.", während der Reader längst im dritten Abschnitt war. Das ist Absicht: Beim automatischen Weiterlesen wird der Status nicht verändert, weil jede Änderung der Live-Region TalkBack dazu bringt, das Buch zu unterbrechen. Maßgeblich ist die Zeile „Abschnitt x von y", und die war korrekt.
+⚠️ While watching, the status line was misleading at first. It still said „Ankommen. Wiedergabe läuft.", while the reader was long since in the third section. That is intentional: during automatic continuation the status is not changed, because every change of the live region makes TalkBack interrupt the book. What counts is the line „Abschnitt x von y", and that one was correct.
 
-Für die Fehlersuche heißt das: Der Statustext ist kein verlässlicher Anzeiger des aktuellen Kapitels.
+For debugging this means the status text is not a reliable indicator of the current chapter.
 
-## Noch offen
+## Still open
 
-- ⛔ Der Signaturschlüssel existiert nur auf einem Rechner. Ohne Sicherung an einem zweiten Ort ist bei Verlust kein Update mehr über eine bestehende Installation möglich, und jeder Nutzer verliert beim Neuinstallieren seine Bibliothek.
-- 0.5.0 lässt sich nicht über 0.4.2 installieren, weil sich die Signatur unterscheidet. Wer 0.4.2 hat, muss deinstallieren.
-- Minifizierung, siehe oben. Braucht einen eigenen Gerätedurchlauf.
-- Mehrsprachigkeit der Oberfläche.
+- ⛔ The signing key exists on only one machine. Without a backup in a second place, losing it makes an update over an existing installation impossible, and every user loses their library when reinstalling.
+- 0.5.0 cannot be installed over 0.4.2, because the signature differs. Anyone who has 0.4.2 must uninstall it.
+- Minification, see above. It needs its own run on a device.
+- Multiple languages for the user interface.

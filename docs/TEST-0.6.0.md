@@ -1,91 +1,91 @@
-# Testprotokoll 0.6.0
+# Test protocol 0.6.0
 
-Datum: 12. September 2026
+Date: 12 September 2026
 
-## Was neu ist
+## What is new
 
-**Eingescannte Bücher werden gelesen.** Eine Seite ohne Textebene wird gerendert und durch die Texterkennung geschickt. Alles auf dem Gerät, das Erkennungsmodell liegt im Paket. Die Begründung und die Messungen stehen in [Entscheidung 0004](decisions/0004-texterkennung-auf-dem-geraet.md).
+**Scanned books are read.** A page without a text layer is rendered and sent through text recognition. Everything on the device, the recognition model is in the package. The reasoning and the measurements are in [decision 0004](decisions/0004-on-device-text-recognition.md).
 
-**Die Stimmenliste sagt, zu welcher Sprachmaschine sie gehört.** Ein Diagnosebericht nannte 17 deutsche Stimmen für die eine Sprachmaschine, während die App die vier einer anderen anbot, und nichts auf dem Bildschirm unterschied die beiden. Die Überschrift heißt jetzt zum Beispiel „Stimmen von Google: 5".
+**The voice list says which speech engine it belongs to.** A diagnosis report named 17 German voices for one speech engine while the app offered the four of another one, and nothing on the screen distinguished the two. The heading now reads, for example, „Stimmen von Google: 5".
 
-## Umgebung
+## Environment
 
-- Mac mini M1, Pixel-8a-Emulator, Android 17, API 37, ARM64.
-- App 0.6.0, Versionscode 13, Release-Build.
-- TalkBack für die automatischen Läufe abgeschaltet.
-- **WLAN und Mobilfunk am Gerät abgeschaltet** für alle Läufe zur Texterkennung.
+- Mac mini M1, Pixel 8a emulator, Android 17, API 37, ARM64.
+- App 0.6.0, version code 13, release build.
+- TalkBack turned off for the automated runs.
+- **Wi-Fi and mobile data turned off on the device** for all text recognition runs.
 
-## Prüfung des Pakets
+## Package checks
 
-| Prüfung | Ergebnis |
+| Check | Result |
 | --- | --- |
-| Signatur verifiziert | bestanden, Schema v2 und v3 |
-| Zertifikat stimmt mit dem Keystore überein | bestanden, SHA-256 `8ec34b04…32c800d8` |
-| `INTERNET` im Paket | nicht vorhanden, obwohl die Erkennungsbibliothek sie mitbringt |
-| `ACCESS_NETWORK_STATE` im Paket | nicht vorhanden |
-| `application-debuggable` | nicht vorhanden |
-| Version im Paket | 0.6.0, Code 13 |
-| Größe | 60,2 MB gegenüber 19,1 MB bei 0.5.1 |
+| Signature verified | passed, scheme v2 and v3 |
+| Certificate matches the keystore | passed, SHA-256 `8ec34b04…32c800d8` |
+| `INTERNET` in the package | not present, although the recognition library brings it along |
+| `ACCESS_NETWORK_STATE` in the package | not present |
+| `application-debuggable` | not present |
+| Version in the package | 0.6.0, code 13 |
+| Size | 60.2 MB compared to 19.1 MB in 0.5.1 |
 
-Die Größe ist der Preis für das Erkennungsmodell und die Bibliotheken für alle vier Prozessorarchitekturen. Wird sie zum Problem, sind getrennte Pakete je Architektur der nächste Schritt.
+The size is the price for the recognition model and the libraries for all four processor architectures. If it becomes a problem, separate packages per architecture are the next step.
 
-## Texterkennung
+## Text recognition
 
-| Messung | Wert |
+| Measurement | Value |
 | --- | --- |
-| pro Seite, rendern und erkennen | 1180 ms |
-| 30-seitiger Scan, vollständiger Import | 28 Sekunden |
-| erkannte Zeichen auf 10 Seiten | 16.949 |
-| hochgerechnet auf 500 Seiten | etwa 10 Minuten, einmalig beim Import |
+| per page, render and recognize | 1180 ms |
+| 30-page scan, complete import | 28 seconds |
+| characters recognized on 10 pages | 16,949 |
+| extrapolated to 500 pages | about 10 minutes, once at import |
 
-Der Renderfaktor wurde gemessen statt geschätzt. Bei 764, 900, 1000 und 1200 Pixeln Seitenbreite lieferte die Erkennung praktisch denselben Text, während die Zeit je Seite stieg. Gerendert wird deshalb mit dem Nötigen.
+The render factor was measured instead of estimated. At 764, 900, 1000 and 1200 pixels of page width the recognition delivered practically the same text, while the time per page grew. Rendering therefore uses only what is needed.
 
-Eine erste Messung hatte 251 ms je Seite ergeben. Sie ließ sich nicht wiederholen und ist verworfen.
+A first measurement had produced 251 ms per page. It could not be reproduced and has been retracted.
 
-## Echte Bücher
+## Real books
 
-Sieben Dateien durch den Importer, darunter erstmals ein echter Scan.
+Seven files through the importer, among them a real scan for the first time.
 
-| Datei | Seiten | Abschnitte | Zeichen | Dauer |
+| File | Pages | Sections | Characters | Time |
 | --- | --- | --- | --- | --- |
-| Scan, Bilder ohne jede Textebene | 30 | 30 | 48.384 | 28,4 s |
-| Sachbuch, groß | 524 | 60 | 827.334 | 44,6 s |
-| Roman, lang | 458 | 458 | 670.006 | 36,5 s |
-| Sachbuch | 194 | 194 | 691.163 | 60,6 s |
-| Technikbuch | 272 | 272 | 481.720 | 20,1 s |
-| Roman, kurz | 100 | 15 | 213.084 | 25,6 s |
-| Broschüre | 8 | 8 | 47.360 | 1,7 s |
+| Scan, images without any text layer | 30 | 30 | 48,384 | 28.4 s |
+| Non-fiction, large | 524 | 60 | 827,334 | 44.6 s |
+| Novel, long | 458 | 458 | 670,006 | 36.5 s |
+| Non-fiction | 194 | 194 | 691,163 | 60.6 s |
+| Technical book | 272 | 272 | 481,720 | 20.1 s |
+| Novel, short | 100 | 15 | 213,084 | 25.6 s |
+| Brochure | 8 | 8 | 47,360 | 1.7 s |
 
-Sieben von sieben lesbar. Der Scan wäre in 0.5.1 noch abgelehnt worden.
+Seven of seven readable. The scan would still have been rejected in 0.5.1.
 
-## Automatische Tests
+## Automated tests
 
-| Lauf | Ergebnis |
+| Run | Result |
 | --- | --- |
-| JVM-Tests (`ReaderCoreTest`) | 17 von 17 bestanden |
-| `PdfImportTest` | 5 von 5, darunter eine Seite, deren Wörter nur als Pixel existieren |
-| `OcrSpeedTest` | bestanden |
-| `RealBooksTest` | bestanden, 7 von 7 |
-| `VoiceListTest` | bestanden, App und Diagnose melden dieselben Stimmen |
-| `ReaderUiTest` | 2 von 2 |
-| `LibraryUiTest`, `LibraryResumeTest` | bestanden |
-| `DiagnosticsTest` | 3 von 3 |
-| `MediaButtonTest` | 2 von 2 |
-| `PlaybackFocusTest` | 5 von 5 |
-| `ProgressivePreparationTest` | 4 von 4 im zweiten Lauf |
-| `SpeechAudioTest` | 6 von 6 im zweiten Lauf |
-| Lint | ohne Fehler |
+| JVM tests (`ReaderCoreTest`) | 17 of 17 passed |
+| `PdfImportTest` | 5 of 5, among them a page whose words exist only as pixels |
+| `OcrSpeedTest` | passed |
+| `RealBooksTest` | passed, 7 of 7 |
+| `VoiceListTest` | passed, app and diagnosis report the same voices |
+| `ReaderUiTest` | 2 of 2 |
+| `LibraryUiTest`, `LibraryResumeTest` | passed |
+| `DiagnosticsTest` | 3 of 3 |
+| `MediaButtonTest` | 2 of 2 |
+| `PlaybackFocusTest` | 5 of 5 |
+| `ProgressivePreparationTest` | 4 of 4 in the second run |
+| `SpeechAudioTest` | 6 of 6 in the second run |
+| Lint | without errors |
 
-Zwei Klassen fielen im ersten Lauf durch und im zweiten nicht: einmal eine Zeitüberschreitung der Sprachausgabe nach 90 Sekunden, einmal eine übersprungene Annahme. Beides betraf die Sprachmaschine des Emulators nach dem Umschalten des Netzes, nicht den geänderten Code. Es steht hier, weil ein verschwiegener Fehlschlag beim nächsten Mal Zeit kostet.
+Two classes failed in the first run and not in the second: once a timeout of the speech engine after 90 seconds, once a skipped assumption. Both concerned the emulator's speech engine after the network was switched, not the changed code. It is written down here because a failure kept quiet costs time next time.
 
-## Rauchtest des Release-Builds
+## Smoke test of the release build
 
-Release-APK installiert, Gerät ohne Netz, App gestartet, Oberfläche ausgelesen. Alle Bedienelemente vorhanden, kein Absturz im Protokoll.
+Release APK installed, device without network, app started, user interface read out. All controls present, no crash in the log.
 
-## Was offen bleibt
+## What stays open
 
-- **Zweispaltige Seiten mischen ihre Spalten.** Gilt für Textseiten wie für Scans. Der Importer liest nach Position, aber ohne Spaltenerkennung.
-- Kopfzeilen, die sich auf jeder Seite wiederholen, werden nicht erkannt.
-- Ein 500-Seiten-Scan braucht beim Import rund zehn Minuten. Der Fortschritt wird angesagt, der Import lässt sich abbrechen.
-- Wechsel des Abschnitts per Medientaste braucht die App im Hintergrund.
-- Die Oberfläche ist deutsch. Mehrsprachigkeit ist der nächste Punkt.
+- **Two-column pages mix their columns.** This applies to text pages as well as scans. The importer reads by position, but without column detection.
+- Headers that repeat on every page are not detected.
+- A 500-page scan takes around ten minutes to import. The progress is announced, the import can be cancelled.
+- Switching the section with a media key needs the app in the background.
+- The user interface is German. Multiple languages are the next item.

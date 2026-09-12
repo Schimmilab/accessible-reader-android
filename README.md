@@ -10,7 +10,7 @@ Prototype, version 0.4.2. Usable, not finished.
 | --- | --- | --- |
 | ![Main screen](docs/screenshots/01-main-screen.png) | ![Table of contents](docs/screenshots/02-table-of-contents.png) | ![Voice settings](docs/screenshots/03-voice-settings.png) |
 
-The interface is German, because the app is built for a German listener. Making it multilingual is an open task and a good first contribution.
+The interface and everything the app says out loud are German, because it was built with and for a German-speaking blind test reader. Nothing in the code assumes German. Making it multilingual is an open task and a good first contribution; the strings in `ui/ReaderScreen.kt`, `core/ReaderModels.kt` and `core/Library.kt` are where to start.
 
 ## Why this exists
 
@@ -39,13 +39,13 @@ No `INTERNET` permission. No cloud keys. PDFs and generated audio stay in privat
 
 - **[docs/BEDIENUNG.md](docs/BEDIENUNG.md)** — the user manual, in German, written to be listened to rather than looked at. Start here if you want to use the app.
 - **[docs/VOICES.md](docs/VOICES.md)** — how Android speech engines work, how to select one, and how to add a free neural voice that sounds better than the stock ones. Also the costs of cloud voices, and how to write another provider.
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how it is built and why, in German.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — how it is built and why.
 - **[docs/decisions/](docs/decisions/)** — the decisions that shaped it, with their reasoning.
 - **[docs/PLAN.md](docs/PLAN.md)** — the full product target. Not a list of finished features.
 - **[docs/TESTING.md](docs/TESTING.md)** — how this is tested without sight, and the limits of testing by a sighted developer.
 - **[docs/COLLABORATION.md](docs/COLLABORATION.md)** — how the collaboration works and what is deliberately kept out of this repository.
 
-Most documents are still German. Translating them is an open task; the two that matter most to a newcomer, this file and `VOICES.md`, are English.
+Everything a developer reads is English. The one deliberate exception is [docs/BEDIENUNG.md](docs/BEDIENUNG.md), the manual for the people using the app today, which is German because the app is.
 
 ## Voices
 
@@ -95,6 +95,36 @@ Device tests need an emulator or phone with German offline voice data. Pass one 
 - Every important function is reachable by TalkBack, by voice and by media keys.
 - Voices are judged in long listening tests, not from short marketing samples.
 
+## Another language
+
+The app speaks German only. Nothing in the code assumes it, and adding a language is the most useful contribution this project could get.
+
+The honest starting point: the strings are hardcoded in Kotlin, roughly 123 of them across ten files, and there is no `strings.xml` yet. Extracting them into resources is step one and a good piece of work on its own. The ones you meet first live in `ui/ReaderScreen.kt` (buttons and the settings dialog), `core/Library.kt` (library and opening messages), `core/ReaderModels.kt` (section announcements and the voice command parser) and `data/DocumentStore.kt` (import messages).
+
+Two things a translator should know before touching anything:
+
+- **Voice commands are matched against German words** in `CommandParser`. A new language needs its own word list, not a translated one. "Vorlesen" is one word; the English equivalent a listener would actually say is not.
+- **Announcements are heard, never seen.** Length matters more than elegance. A section announcement that takes four seconds to speak is four seconds of a book not being read.
+
+The German strings that appear throughout this documentation, so you can follow the examples:
+
+| German | What it means |
+| --- | --- |
+| Vorlesen | read aloud, the play button |
+| Pause | pause |
+| Bibliothek, Meine Bücher | library, my books, both reach the library |
+| Inhaltsverzeichnis, Übersicht vorlesen | table of contents, read the overview aloud |
+| Abschnitt 2 von 3 | section 2 of 3 |
+| 30 Sekunden zurück | 30 seconds back |
+| Zurück, Weiter | previous, next |
+| Entfernen, Ja, entfernen | remove, and the confirmation "yes, remove" |
+| Probe, Hörprobe für … | sample, listening sample for … |
+| Erzeugtes Audio löschen | delete generated audio |
+| Standardstimme dieser Sprachausgabe | default voice of this speech engine |
+| Stimmen von Google: 5 | voices from Google: 5, the heading over the voice list |
+| noch nicht vorbereitet | not prepared yet, shown before audio exists |
+| Ankommen | "Arriving", a chapter title from the sample document |
+
 ## Contributing
 
 The most valuable contribution is not code. If you use a screen reader and this app annoys you, say where. Issues describing a dead end, an unclear announcement or an unnecessary swipe are worth more than a patch.
@@ -105,7 +135,7 @@ If you do write code, the constraints that must hold:
 - no `INTERNET` permission, and no cloud dependency in the free core function
 - never change a focused control's label in response to a screen reader speaking
 - two controls on screen must not carry the same name
-- user-facing strings stay German for now
+- user-facing strings stay German, developer-facing text stays English
 
 `CLAUDE.md` in the repository root carries the working notes for the codebase, including the traps that already cost time.
 

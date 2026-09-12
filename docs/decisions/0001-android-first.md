@@ -1,29 +1,29 @@
-# Entscheidung 0001: Android zuerst
+# Decision 0001: Android first
 
-Datum: 9. September 2026
+Date: 9 September 2026
 
-Status: angenommen
+Status: accepted
 
-## Ausgangslage
+## Context
 
-Der Reader soll langfristig auch fuer iPhone und iPad interessant sein. TalkBack und VoiceOver unterscheiden sich jedoch bei Fokus, Gesten, Rueckmeldungen, Mediensteuerung und Tests. Eine gemeinsame Oberflaeche wuerde den Start verlangsamen und koennte zu Kompromissen bei der Barrierefreiheit fuehren.
+In the long run the reader should also be interesting for iPhone and iPad. TalkBack and VoiceOver differ, however, in focus, gestures, feedback, media control and testing. A shared user interface would slow down the start and could lead to compromises in accessibility.
 
-## Entscheidung
+## Decision
 
-Android ist die fuehrende Plattform.
+Android is the lead platform.
 
-- Das erste benutzbare Produkt ist eine native Android-App.
-- Produktentscheidungen werden zuerst mit TalkBack und der Nutzung durch die Testnutzerin geprueft.
-- Das Android-MVP wird nicht auf eine gemeinsame iOS-Codebasis ausgerichtet.
-- Android verwendet Kotlin, Jetpack Compose, Media3 und die Android-Zugaenglichkeitsfunktionen.
-- Eine iOS-Version folgt spaeter als eigene native App mit SwiftUI, VoiceOver, AVFoundation und PDFKit.
-- Cloud-Schnittstellen, Testtexte, Test-PDFs und dokumentierte Bedienregeln duerfen beide Plattformen teilen.
-- Gemeinsamer Programmcode wird erst eingefuehrt, wenn ein konkreter Vorteil nachgewiesen ist und keine Plattform dadurch schlechter bedienbar wird.
+- The first usable product is a native Android app.
+- Product decisions are checked first with TalkBack and with the way the test reader uses the app.
+- The Android MVP is not aimed at a shared iOS codebase.
+- Android uses Kotlin, Jetpack Compose, Media3 and the Android accessibility features.
+- An iOS version follows later as its own native app with SwiftUI, VoiceOver, AVFoundation and PDFKit.
+- Cloud interfaces, test texts, test PDFs and documented operating rules may be shared by both platforms.
+- Shared program code is introduced only once a concrete benefit is proven and no platform becomes harder to operate because of it.
 
-## Folgen
+## Consequences
 
-Der erste Prototyp erreicht die Testnutzerin frueher. TalkBack kann ohne Ruecksicht auf eine gemeinsame Oberflaeche sauber umgesetzt werden. Android-spezifische Funktionen wie MediaSession, lokale Spracherkennung und Hintergrunddienste lassen sich direkt nutzen.
+The first prototype reaches the test reader earlier. TalkBack can be implemented cleanly without regard for a shared user interface. Android specific features such as MediaSession, local speech recognition and background services can be used directly.
 
-Eine spaetere iOS-Version braucht eigene Oberflaechen- und Medienschnittstellen. Das bedeutet mehr Entwicklungsarbeit. Sie kann dafuer VoiceOver und die Staerken von iOS ohne Ruecksicht auf Android-Konventionen nutzen.
+A later iOS version needs its own user interface and media interfaces. That means more development work. In return it can use VoiceOver and the strengths of iOS without regard for Android conventions.
 
-Das Repository behaelt vorerst den Namen `accessible-reader-android`. Falls spaeter eine iOS-App entsteht, kann sie in einem eigenen Repository oder in einem uebergeordneten Projekt organisiert werden.
+For now the repository keeps the name `accessible-reader-android`. If an iOS app is created later, it can be organised in its own repository or in a parent project.

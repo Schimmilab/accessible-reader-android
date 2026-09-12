@@ -1,64 +1,64 @@
-# Testprotokoll 0.5.1
+# Test protocol 0.5.1
 
-Datum: 12. September 2026
+Date: 12 September 2026
 
-## Was neu ist
+## What is new
 
-Drei Befunde aus einer Runde Hörrückmeldung.
+Three findings from a round of listening feedback.
 
-- **Wiederaufnahme aus der Bibliothek wird jetzt gesagt.** Das Fortsetzen hat schon vorher funktioniert, aber auf dem Bildschirm stand nur „noch nicht vorbereitet“ und die Sprungtasten waren aus. Wer nicht sieht, schließt daraus, die App habe die Stelle vergessen. Die Öffnen-Meldung nennt jetzt den Abschnitt, bei dem es weitergeht.
-- **Ein Scan wird nach einer Stichprobe abgelehnt, nicht am Ende.** Vorher las die App ein 500-Seiten-Scan bis zur letzten Seite, bevor sie zugab, dass kein Text darin steht. Jetzt reichen 25 Seiten ohne ein einziges Zeichen, und die Meldung benennt die fehlende Texterkennung.
-- **Drucksatz wird vorher aufgeräumt.** Ein 524-Seiten-Buch las seine Seitenzahlen mitten im Satz mit und zerbrach jedes getrennte Wort. Ursache waren weiche Trennzeichen und, in einem anderen Buch, 302-mal das alte Zeichen `¬` als Trennstrich.
+- **Resuming from the library is now spoken.** Continuing already worked before, but the screen only said „noch nicht vorbereitet“ and the jump buttons were off. Someone who cannot see concludes from this that the app has forgotten the position. The opening message now names the section where it continues.
+- **A scan is rejected after a sample, not at the end.** Previously the app read a 500-page scan up to the last page before admitting that there is no text in it. Now 25 pages without a single character are enough, and the message names the missing text recognition.
+- **Print typesetting is cleaned up beforehand.** A 524-page book read its page numbers aloud in the middle of a sentence and broke every hyphenated word. The cause was soft hyphens and, in another book, 302 occurrences of the old character `¬` as a hyphen.
 
-## Umgebung
+## Environment
 
-- Mac mini M1, Pixel-8a-Emulator, Android 17, API 37, ARM64.
-- App 0.5.1, Versionscode 12, Release-Build.
-- TalkBack für die automatischen Läufe abgeschaltet.
+- Mac mini M1, Pixel 8a emulator, Android 17, API 37, ARM64.
+- App 0.5.1, version code 12, release build.
+- TalkBack turned off for the automated runs.
 
-## Prüfung des Pakets
+## Package checks
 
-| Prüfung | Ergebnis |
+| Check | Result |
 | --- | --- |
-| Signatur verifiziert | bestanden, Schema v2 und v3 |
-| Zertifikat stimmt mit dem Keystore überein | bestanden, SHA-256 `8ec34b04…32c800d8` |
-| `application-debuggable` | nicht vorhanden, wie es sein muss |
-| Version im Paket | 0.5.1, Code 12 |
-| Größe | 19,1 MB |
+| Signature verified | passed, scheme v2 and v3 |
+| Certificate matches the keystore | passed, SHA-256 `8ec34b04…32c800d8` |
+| `application-debuggable` | not present, as it must be |
+| Version in the package | 0.5.1, code 12 |
+| Size | 19.1 MB |
 
-## Echte Bücher
+## Real books
 
-Sechs Bücher wurden mit `RealBooksTest` durch den Importer geschickt. Der Lauf liegt im Log unter der Marke `ReaderBooks`.
+Six books were sent through the importer with `RealBooksTest`. The run is in the log under the tag `ReaderBooks`.
 
-| Buch | Seiten im PDF | Abschnitte | Zeichen | Importdauer |
+| Book | Pages in the PDF | Sections | Characters | Import time |
 | --- | --- | --- | --- | --- |
-| Roman, kurz | 100 | 15 | 213.026 | 7,2 s |
-| Sachbuch, groß | 524 | 60 | 827.204 | 13,7 s |
-| Roman, lang | 458 | 458 | 669.970 | 17,7 s |
-| Technikbuch | 272 | 272 | 481.720 | 4,6 s |
-| Sachbuch | 194 | 194 | 690.714 | 13,4 s |
-| Broschüre | 8 | 8 | 47.360 | 0,5 s |
+| Novel, short | 100 | 15 | 213,026 | 7.2 s |
+| Non-fiction, large | 524 | 60 | 827,204 | 13.7 s |
+| Novel, long | 458 | 458 | 669,970 | 17.7 s |
+| Technical book | 272 | 272 | 481,720 | 4.6 s |
+| Non-fiction | 194 | 194 | 690,714 | 13.4 s |
+| Brochure | 8 | 8 | 47,360 | 0.5 s |
 
-Alle sechs lesbar, in keinem blieb ein Trennzeichen übrig. Zwei der Bücher hätten die alte Grenze von 300 Seiten nicht passiert.
+All six readable, in none of them did a hyphen remain. Two of the books would not have passed the old limit of 300 pages.
 
-## Automatische Tests
+## Automated tests
 
-| Lauf | Ergebnis |
+| Run | Result |
 | --- | --- |
-| JVM-Tests (`ReaderCoreTest`) | 16 von 16 bestanden |
-| `PdfImportTest` | 4 von 4 bestanden |
-| `LibraryResumeTest` | bestanden, beweist die Wiederaufnahme |
-| `ReaderUiTest` | 2 von 2 bestanden |
-| `RealBooksTest` | bestanden, 6 von 6 Büchern lesbar |
-| Lint | ohne Fehler |
+| JVM tests (`ReaderCoreTest`) | 16 of 16 passed |
+| `PdfImportTest` | 4 of 4 passed |
+| `LibraryResumeTest` | passed, proves the resume |
+| `ReaderUiTest` | 2 of 2 passed |
+| `RealBooksTest` | passed, 6 of 6 books readable |
+| Lint | without errors |
 
-## Rauchtest des Release-Builds
+## Smoke test of the release build
 
-Release-APK installiert, App gestartet, Oberfläche ausgelesen. Alle Bedienelemente vorhanden, kein Absturz im Protokoll.
+Release APK installed, app started, user interface read out. All controls present, no crash in the log.
 
-## Was offen bleibt
+## What stays open
 
-- **Texterkennung für Scans fehlt.** Die meisten Bücher der Testnutzerin sind eingescannt. Der Weg ohne Cloud ist ML Kit auf dem Gerät, siehe unten.
-- **Zweispaltige Seiten mischen ihre Spalten.** In der Broschüre steht mitten im Satz der Text der Nachbarspalte. Der Importer liest nach Position, aber ohne Spaltenerkennung.
-- Kopfzeilen, die sich auf jeder Seite wiederholen, werden noch nicht erkannt. In den geprüften Büchern gab es keine, in Fachbüchern sind sie üblich.
-- Wechsel des Abschnitts per Medientaste braucht die App im Hintergrund.
+- **Text recognition for scans is missing.** Most of the test reader's books are scanned. The way without a cloud is ML Kit on the device, see below.
+- **Two-column pages mix their columns.** In the brochure the text of the neighbouring column appears in the middle of a sentence. The importer reads by position, but without column detection.
+- Headers that repeat on every page are not detected yet. The books that were checked had none, in specialist books they are common.
+- Switching the section with a media key needs the app in the background.

@@ -1,284 +1,284 @@
-# Projektplan
+# Project plan
 
-Stand: 9. September 2026
+As of 9 September 2026
 
-## Umsetzungsstand vom 10. September 2026
+## Implementation status as of 10 September 2026
 
-Das native Grundgerüst 0.1.0 ist umgesetzt und als Debug-APK auf dem Pixel-8a-Emulator installiert. Es verbindet Text-PDF-Import, PDF-Lesezeichen oder Seitennavigation, lokale Android-TTS-Audioerzeugung mit Cache, Media3-Wiedergabe, 30-Sekunden-Sprünge, Inhaltsverzeichnis, Geschwindigkeit und gespeicherte Hörpositionen. Die App hat eine TalkBack-Semantik und eine eigene Schnittstelle für lokale deutsche Sprachbefehle.
+The native 0.1.0 scaffold is implemented and installed as a debug APK on the Pixel 8a emulator. It combines text PDF import, PDF bookmarks or page navigation, local Android TTS audio generation with a cache, Media3 playback, 30 second jumps, a table of contents, speed and saved listening positions. The app has TalkBack semantics and its own interface for local German voice commands.
 
-Fünf Logiktests und fünf Gerätetests prüfen die Kernfunktionen. Der Gerätetest hat Audio mit einer deutschen Offline-Stimme erzeugt, den Cache wiederverwendet, die Kapitelwahl und die 30-Sekunden-Sprünge ausgeführt. Der aktuelle Umfang und die Grenzen stehen in der README. Die nächsten Schritte sind ein praktischer Mikrofon- und TalkBack-Hörtest, der Vergleich natürlicherer Stimmen, fortlaufendes Abspielen mehrerer Kapitel und OCR.
+Five logic tests and five device tests cover the core functions. The device test generated audio with a German offline voice, reused the cache, and ran chapter selection and the 30 second jumps. The current scope and the limits are described in the README. The next steps are a practical microphone and TalkBack listening test, a comparison of more natural voices, continuous playback across several chapters and OCR.
 
-Der nachfolgende Produktplan beschreibt weiterhin das vollständige Ziel. Er ist keine Liste bereits fertiggestellter Funktionen.
+The product plan below still describes the full target. It is not a list of features that are already finished.
 
-## 1. Ziel
+## 1. Goal
 
-Die App ist ein Audio-Reader fuer blinde Menschen. Sie oeffnet PDF-Dokumente, erkennt deren Struktur und liest sie mit einer moeglichst natuerlichen Stimme vor. Die gesamte Bedienung funktioniert mit TalkBack und zusaetzlich ueber Sprachbefehle.
+The app is an audio reader for blind people. It opens PDF documents, recognizes their structure and reads them aloud with a voice that is as natural as possible. The whole app can be operated with TalkBack and additionally through voice commands.
 
-Die App soll als Open-Source-Projekt auf GitHub erscheinen. Eine kostenlose lokale Stimme bildet die Grundversorgung. Hochwertige Cloud-Stimmen koennen Nutzerinnen und Nutzer optional einschalten.
+The app is meant to be published as an open source project on GitHub. A free local voice provides the basic service. Users can optionally switch on high quality cloud voices.
 
-Android hat Vorrang. Der vollstaendige erste Reader wird fuer Android entwickelt, getestet und mit der blinden Testnutzerin verbessert. Eine iOS-Version ist eine spaetere eigene Ausbaustufe. Gemeinsam genutzt werden nur Teile, bei denen das keinen Kompromiss bei TalkBack, VoiceOver oder Mediensteuerung erzwingt.
+Android takes precedence. The complete first reader is developed for Android, tested there and improved together with the blind test user. An iOS version is a separate later stage. Only those parts are shared that do not force a compromise on TalkBack, VoiceOver or media control.
 
-## 2. Produktgrundsaetze
+## 2. Product principles
 
-### Audio zuerst
+### Audio first
 
-Die sichtbare Oberflaeche ist nicht der Ausgangspunkt. Jede Funktion wird zuerst als Ablauf mit TalkBack, Spracheingabe und Kopfhoerer-Tasten beschrieben. Erst danach entsteht die visuelle Darstellung.
+The visible interface is not the starting point. Every function is first described as a flow using TalkBack, voice input and headphone buttons. Only after that does the visual presentation follow.
 
-### Mit blinden Menschen testen
+### Test with blind people
 
-Die Testnutzerin soll den Prototyp bereits waehrend der Entwicklung testen. Automatische Barrierefreiheitstests reichen nicht aus. Besonders wichtig sind die Zahl der Wischbewegungen, die Reihenfolge der Elemente, verstaendliche Rueckmeldungen und das Verhalten bei gleichzeitig laufendem Buchaudio.
+The test user should test the prototype while it is still being developed. Automated accessibility tests are not enough. The number of swipe gestures, the order of the elements, understandable feedback and the behaviour while book audio is playing at the same time matter most.
 
-### Hoerqualitaet ueber lange Zeit
+### Listening quality over a long time
 
-Eine Stimme wird nicht nach einer fuenf Sekunden langen Probe ausgewaehlt. Der Hoertest dauert mindestens zwei bis fuenf Minuten und enthaelt:
+A voice is not chosen from a five second sample. The listening test lasts at least two to five minutes and contains:
 
-- erzaehlende Passagen und Dialog,
-- kurze und lange Saetze,
-- Zahlen, Uhrzeiten, Datumsangaben und Abkuerzungen,
-- fremdsprachige Namen,
-- verschiedene Geschwindigkeiten von 1,0 bis mindestens 1,5.
+- narrative passages and dialogue,
+- short and long sentences,
+- numbers, times, dates and abbreviations,
+- foreign language names,
+- different speeds from 1.0 up to at least 1.5.
 
-Spaeter folgt ein Dauertest von mindestens 30 Minuten. Bewertet werden Betonung, Pausen, Aussprachefehler, Gleichfoermigkeit und Hoermuedigkeit.
+A long run test of at least 30 minutes follows later. It rates emphasis, pauses, pronunciation errors, monotony and listening fatigue.
 
-### Kosten bleiben vorhersehbar
+### Costs stay predictable
 
-Die App erzeugt Cloud-Audio abschnittsweise und speichert es lokal. Bereits erzeugte Abschnitte werden nicht erneut berechnet. Ein einstellbares Monatslimit stoppt weitere Cloud-Anfragen und aktiviert die lokale Stimme.
+The app generates cloud audio section by section and stores it locally. Sections that have already been generated are not computed again. An adjustable monthly limit stops further cloud requests and activates the local voice.
 
-### Kein Zwangskonto fuer die Grundfunktion
+### No mandatory account for the basic function
 
-PDF-Import, Navigation, lokale Stimme und gespeicherte Positionen funktionieren ohne Registrierung. Eine Cloud-Anmeldung wird nur verlangt, wenn eine Cloud-Stimme benutzt wird.
+PDF import, navigation, the local voice and saved positions work without registration. A cloud login is only required when a cloud voice is used.
 
-## 3. Bedienkonzept
+## 3. Operating concept
 
 ### TalkBack
 
-TalkBack liest Menues, Schaltflaechen, Zustaende und Fehlermeldungen. Die App stellt dafuer saubere Rollen, Beschriftungen, Ueberschriften, Zustaende und eine feste Fokusreihenfolge bereit. Komplexe Gesten erhalten gleichwertige benannte Aktionen.
+TalkBack reads menus, buttons, states and error messages. For that the app provides clean roles, labels, headings, states and a fixed focus order. Complex gestures get equivalent named actions.
 
-Es gibt keine rein bildlichen Schaltflaechen und keine Funktion, die nur durch Ziehen oder eine versteckte Geste erreichbar ist.
+There are no purely graphical buttons and no function that can only be reached by dragging or by a hidden gesture.
 
-### Spracheingabe
+### Voice input
 
-Die Spracheingabe startet ueber eine grosse Schaltflaeche. Eine spaetere Version kann Kopfhoerer-Tasten oder einen optionalen Aktivierungssatz unterstuetzen. Dauerhaftes Mithoeren ist fuer die erste Version nicht vorgesehen.
+Voice input starts from a large button. A later version can support headphone buttons or an optional activation phrase. Permanent listening is not planned for the first version.
 
-Beim Start eines Befehls pausiert das Buch. Die App bestaetigt die erkannte Aktion kurz und setzt die Wiedergabe anschliessend fort.
+The book pauses when a command starts. The app briefly confirms the recognized action and then resumes playback.
 
-Vorgesehene Befehle:
+Planned commands:
 
-- Vorlesen, Pause und Fortsetzen
-- 30 Sekunden zurueck oder vor
-- eine frei gesprochene Zeit zurueck oder vor
-- naechstes oder vorheriges Kapitel
-- Inhaltsverzeichnis oeffnen oder vorlesen
-- zu einem Kapitel oder einer Seite wechseln
-- aktuelle Position ansagen
-- Lesegeschwindigkeit aendern
-- Lesezeichen setzen und aufrufen
-- Aussprache korrigieren
-- Einschlaftimer setzen
+- read aloud, pause and resume
+- 30 seconds back or forward
+- a freely spoken amount of time back or forward
+- next or previous chapter
+- open or read aloud the table of contents
+- go to a chapter or a page
+- announce the current position
+- change the reading speed
+- set and recall bookmarks
+- correct pronunciation
+- set a sleep timer
 
-Die erste Version erkennt fest definierte Absichten lokal. Ein grosses Sprachmodell ist dafuer nicht erforderlich.
+The first version recognizes fixed intents locally. A large language model is not required for that.
 
-### Mediensteuerung
+### Media control
 
-Android Media3 und MediaSession steuern Wiedergabe, Pause, Spruenge und Kapitelwechsel. Dadurch funktionieren auch Sperrbildschirm, Benachrichtigungsbereich, Bluetooth-Kopfhoerer und physische Medientasten.
+Android Media3 and MediaSession control playback, pause, jumps and chapter changes. That also makes the lock screen, the notification area, Bluetooth headphones and physical media keys work.
 
-## 4. Dokumentverarbeitung
+## 4. Document processing
 
-Die App erzeugt aus jedem PDF ein internes Dokumentmodell:
+The app builds an internal document model from every PDF:
 
-- Titel und Autor, soweit vorhanden
-- Kapitel und Unterkapitel
-- Absaetze
-- Quellseite und Textposition
-- Lesefortschritt und Lesezeichen
-- Verknuepfung zwischen Textabschnitt und erzeugtem Audio
+- title and author, where available
+- chapters and subchapters
+- paragraphs
+- source page and text position
+- reading progress and bookmarks
+- the link between a text section and the generated audio
 
-Die Verarbeitung erfolgt in dieser Reihenfolge:
+Processing happens in this order:
 
-1. Vorhandene PDF-Lesezeichen und Strukturinformationen uebernehmen.
-2. Eingebetteten Text in sinnvoller Lesereihenfolge extrahieren.
-3. Kopfzeilen, Fusszeilen, wiederholte Seitennummern und Trennstriche bereinigen.
-4. Fehlende Ueberschriften anhand von Schriftgroesse, Position und Textmerkmalen erkennen.
-5. Bei Bild-PDFs die Seiten lokal per OCR verarbeiten.
-6. Unsichere Ergebnisse klar kennzeichnen, statt ein erfundenes Inhaltsverzeichnis vorzugeben.
+1. Take over existing PDF bookmarks and structure information.
+2. Extract embedded text in a sensible reading order.
+3. Clean up headers, footers, repeated page numbers and hyphens.
+4. Detect missing headings from font size, position and text characteristics.
+5. For image PDFs, process the pages locally with OCR.
+6. Mark uncertain results clearly instead of presenting an invented table of contents.
 
-Mehrspaltige Seiten, Tabellen, Fussnoten, Formeln und gescannte Dokumente sind eigene Testfaelle. Die App muss solche Inhalte ansagen oder ueberspringbar machen.
+Multi column pages, tables, footnotes, formulas and scanned documents are test cases of their own. The app must announce such content or make it skippable.
 
-## 5. Stimmen
+## 5. Voices
 
-Die App bekommt eine austauschbare Anbieterschnittstelle. Der Player und die Dokumentverarbeitung duerfen nicht direkt von Google oder einem bestimmten lokalen Modell abhaengen.
+The app gets an interchangeable provider interface. The player and the document processing must not depend directly on Google or on one particular local model.
 
-### Lokale Kandidaten
+### Local candidates
 
 #### Kikiri German
 
-Kikiri German basiert auf der Kokoro-Architektur. Aktuell gibt es die deutsche Maennerstimme Martin und die Frauenstimme Victoria. Die Modelle stehen unter Apache 2.0. Eine ONNX-Fassung von Martin ist ungefaehr 327 MB gross.
+Kikiri German is based on the Kokoro architecture. At the moment there is the German male voice Martin and the female voice Victoria. The models are licensed under Apache 2.0. An ONNX build of Martin is about 327 MB.
 
-Vor einer Entscheidung werden Startzeit, Speicherverbrauch, Akkubelastung, Geschwindigkeit und Klang auf einem Mittelklasse-Androidgeraet gemessen.
+Before a decision, startup time, memory use, battery load, speed and sound are measured on a mid range Android device.
 
-- Projekt: https://github.com/semidark/kikiri-tts
-- ONNX-Modell: https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
+- Project: https://github.com/semidark/kikiri-tts
+- ONNX model: https://huggingface.co/Godelaune/Kokoro-82M-ONNX-German-Martin
 - Victoria: https://huggingface.co/kikiri-tts/kikiri-german-victoria
 
 #### Piper
 
-Piper ist kleiner und schneller. Die deutsche Thorsten-Stimme benoetigt je nach Qualitaetsstufe ungefaehr 60 bis 114 MB. Piper eignet sich als Offline-Reserve, wenn Kikiri auf einem Geraet zu langsam ist.
+Piper is smaller and faster. The German Thorsten voice needs about 60 to 114 MB depending on the quality level. Piper works as an offline fallback when Kikiri is too slow on a device.
 
 - Engine: https://github.com/OHF-Voice/piper1-gpl
 - Thorsten: https://huggingface.co/rhasspy/piper-voices/tree/main/de/de_DE/thorsten/high
 
-Die GPL-Lizenz der aktuellen Piper-Engine wird vor einer direkten Einbindung geprueft. Stimmenmodelle und Engine haben getrennte Lizenzen.
+The GPL license of the current Piper engine is reviewed before it is integrated directly. Voice models and engine have separate licenses.
 
-### Cloud-Kandidaten
+### Cloud candidates
 
 #### Google Chirp 3 HD
 
-Chirp 3 HD ist der bevorzugte Qualitaetsmodus. Google bietet zahlreiche deutsche Stimmen. Nach dem derzeitigen Preismodell sind bis zu eine Million Zeichen pro Monat kostenlos, danach kostet die Nutzung 30 US-Dollar je Million Zeichen. Preise und Freikontingente koennen sich aendern.
+Chirp 3 HD is the preferred quality mode. Google offers numerous German voices. Under the current pricing model up to one million characters per month are free, after that usage costs 30 US dollars per million characters. Prices and free quotas can change.
 
 #### Google Neural2
 
-Neural2 ist der Cloud-Sparmodus. Nach dem derzeitigen Preismodell sind bis zu eine Million Zeichen pro Monat kostenlos, danach kostet die Nutzung 16 US-Dollar je Million Zeichen.
+Neural2 is the economy cloud mode. Under the current pricing model up to one million characters per month are free, after that usage costs 16 US dollars per million characters.
 
-- Preise: https://cloud.google.com/text-to-speech/pricing?hl=de
-- Stimmen: https://docs.cloud.google.com/text-to-speech/docs/list-voices-and-types?hl=de
+- Prices: https://cloud.google.com/text-to-speech/pricing?hl=de
+- Voices: https://docs.cloud.google.com/text-to-speech/docs/list-voices-and-types?hl=de
 
-### Anbieterzugang
+### Provider access
 
-Ein gemeinsamer geheimer API-Schluessel darf niemals in der Android-App liegen. Fuer die erste Open-Source-Version werden diese Wege untersucht:
+A shared secret API key must never sit inside the Android app. These routes are being examined for the first open source version:
 
-- eigener Zugang des Nutzers,
-- frei konfigurierbarer kompatibler Server,
-- spaeter ein gemeinschaftlich finanzierter Dienst mit Tages- und Monatsgrenzen.
+- the user's own account,
+- a freely configurable compatible server,
+- later a community funded service with daily and monthly limits.
 
-Ein oeffentlicher Gemeinschaftsdienst benoetigt Anmeldung, Missbrauchsschutz, nachvollziehbare Quoten und einen klaren Datenschutztext. Er ist nicht Teil des ersten Prototyps.
+A public community service needs a login, abuse protection, understandable quotas and a clear privacy statement. It is not part of the first prototype.
 
-## 6. Audioerzeugung und Cache
+## 6. Audio generation and cache
 
-Die App teilt Text an Absatz- und Satzgrenzen in kurze Abschnitte. Sie erzeugt den aktuellen Abschnitt und laedt einige folgende Abschnitte voraus.
+The app splits text into short sections at paragraph and sentence boundaries. It generates the current section and prefetches a few following sections.
 
-Der Cache-Schluessel beruecksichtigt:
+The cache key takes these into account:
 
-- bereinigten Text,
-- Stimmenanbieter und Stimmenkennung,
-- Geschwindigkeit und weitere Sprachparameter,
-- Modellversion.
+- the cleaned text,
+- the voice provider and the voice id,
+- speed and further speech parameters,
+- the model version.
 
-Der Cache kann pro Dokument oder vollstaendig geloescht werden. Die App zeigt Speicherverbrauch und geschaetzte Cloud-Kosten barrierefrei an.
+The cache can be cleared per document or completely. The app shows storage use and estimated cloud costs accessibly.
 
-Zeitliche Spruenge beziehen sich auf die Audioposition. Kapitelwechsel beziehen sich auf das interne Dokumentmodell. Beim Wechsel der Stimme bleibt die Textposition erhalten.
+Jumps in time refer to the audio position. Chapter changes refer to the internal document model. The text position is kept when the voice changes.
 
-## 7. Vorgeschlagene Android-Technik
+## 7. Proposed Android technology
 
 - Kotlin
-- Jetpack Compose mit vollstaendiger Semantik fuer TalkBack
-- Android Media3 und MediaSession
-- Room fuer Bibliothek, Fortschritt, Kapitel und Lesezeichen
-- WorkManager fuer laengere OCR- und Aufbereitungsarbeiten
-- Android SpeechRecognizer fuer Sprachbefehle, bevorzugt lokal ab Android 12
-- ML Kit Text Recognition fuer lokale OCR
-- ONNX Runtime fuer geeignete lokale Stimmenmodelle
+- Jetpack Compose with complete semantics for TalkBack
+- Android Media3 and MediaSession
+- Room for the library, progress, chapters and bookmarks
+- WorkManager for longer OCR and preparation work
+- Android SpeechRecognizer for voice commands, preferably local from Android 12 on
+- ML Kit Text Recognition for local OCR
+- ONNX Runtime for suitable local voice models
 
-Die konkrete PDF-Bibliothek wird nach Tests mit strukturierten, mehrspaltigen und gescannten PDFs ausgewaehlt.
+The actual PDF library is chosen after tests with structured, multi column and scanned PDFs.
 
 ## 8. MVP
 
-Der erste benutzbare Prototyp umfasst:
+The first usable prototype covers:
 
-- Installation als private APK
-- PDF ueber Dateiauswahl und Android-Teilen-Menue oeffnen
-- eine vollstaendig mit TalkBack bedienbare Bibliothek
-- Play, Pause und Fortsetzen
-- 30 Sekunden zurueck und vor
-- naechstes und vorheriges Kapitel
-- Inhaltsverzeichnis anzeigen und vorlesen
-- aktuelle Position ansagen
-- letzte Position automatisch speichern
-- Geschwindigkeit einstellen
-- einfache Spracheingabe fuer alle genannten Funktionen
-- eine lokale Teststimme
-- eine optionale Google-Cloud-Stimme
-- lokalen Audiocache und Kostenlimit
+- installation as a private APK
+- opening a PDF through the file picker and the Android share menu
+- a library that can be operated entirely with TalkBack
+- play, pause and resume
+- 30 seconds back and forward
+- next and previous chapter
+- showing and reading aloud the table of contents
+- announcing the current position
+- saving the last position automatically
+- setting the speed
+- simple voice input for all the functions listed
+- one local test voice
+- one optional Google cloud voice
+- a local audio cache and a cost limit
 
-## 9. Abnahmekriterien fuer den ersten Prototyp
+## 9. Acceptance criteria for the first prototype
 
-Die Testnutzerin kann ohne sehende Hilfe:
+The test user can do the following without sighted help:
 
-1. eine PDF-Datei aus einer anderen App oeffnen,
-2. das Vorlesen beginnen und pausieren,
-3. 30 Sekunden springen,
-4. Kapitel wechseln,
-5. das Inhaltsverzeichnis aufrufen,
-6. ihre aktuelle Position erfahren,
-7. einen Sprachbefehl geben,
-8. die App schliessen und spaeter an derselben Stelle fortsetzen,
-9. erkennen, ob gerade die lokale oder eine kostenpflichtige Stimme aktiv ist,
-10. das Cloud-Kostenlimit verstehen und aendern.
+1. open a PDF file from another app,
+2. start and pause reading aloud,
+3. jump 30 seconds,
+4. change chapter,
+5. open the table of contents,
+6. find out her current position,
+7. give a voice command,
+8. close the app and later continue at the same place,
+9. tell whether the local voice or a paid voice is currently active,
+10. understand and change the cloud cost limit.
 
-Kein Bedienweg darf in einer Sackgasse fuer TalkBack enden.
+No path through the app may end in a dead end for TalkBack.
 
-## 10. Entwicklungsphasen
+## 10. Development phases
 
-### Phase 0: Hoertest und Bedieninterview
+### Phase 0: Listening test and operating interview
 
-- identische laengere Proben aller Stimmen erstellen
-- Die Testnutzerin bewertet Stimmen bei mehreren Geschwindigkeiten
-- ihre bisherigen Reader und bevorzugten Gesten aufnehmen
-- Muss-Funktionen und stoerende Verhaltensweisen dokumentieren
+- create identical longer samples of all voices
+- the test user rates voices at several speeds
+- record the readers she has used so far and her preferred gestures
+- document must have functions and behaviour that gets in the way
 
-### Phase 1: Barrierefreier Audioplayer
+### Phase 1: Accessible audio player
 
-- statisches Testbuch verwenden
-- TalkBack-Navigation und MediaSession umsetzen
-- Spruenge, Kapitelwechsel, Position und Spracheingabe testen
+- use a static test book
+- implement TalkBack navigation and MediaSession
+- test jumps, chapter changes, position and voice input
 
-### Phase 2: PDF-Verarbeitung
+### Phase 2: PDF processing
 
-- Text-PDFs importieren
-- Dokumentstruktur erzeugen
-- OCR fuer Bild-PDFs hinzufuegen
-- schwierige Layouts sammeln und als Regressionstests sichern
+- import text PDFs
+- build the document structure
+- add OCR for image PDFs
+- collect difficult layouts and keep them as regression tests
 
-### Phase 3: Stimmenanbieter
+### Phase 3: Voice providers
 
-- lokalen Modellkandidaten auf Android messen
-- Google Chirp 3 HD und Neural2 anbinden
-- Cache, Kostenanzeige und harte Limits umsetzen
+- measure the local model candidate on Android
+- connect Google Chirp 3 HD and Neural2
+- implement the cache, the cost display and hard limits
 
-### Phase 4: Oeffentliche Testversion
+### Phase 4: Public test version
 
-- Lizenz festlegen
-- Datenschutz- und Sicherheitspruefung
-- reproduzierbare Builds und automatisierte Tests
-- GitHub-Dokumentation und barrierefreie Fehlerberichte
-- APK-Testverteilung, danach Entscheidung ueber den Play Store
+- decide on a license
+- privacy and security review
+- reproducible builds and automated tests
+- GitHub documentation and accessible bug reports
+- APK test distribution, then a decision about the Play Store
 
-## 11. Qualitaetssicherung
+## 11. Quality assurance
 
-- manuelle Tests mit TalkBack auf mindestens einem Google- und einem Samsung-Geraet
-- Tests mit abgeschaltetem Bildschirm
-- Tests mit Bluetooth-Kopfhoerern und Kabel-Headset
-- Accessibility Scanner und automatisierte Compose-Semantiktests
-- Hoertests bei mehreren Geschwindigkeiten
-- Flugmodus, schlechte Verbindung und abgelaufenes Cloud-Limit
-- grosse PDFs und knapper Geraetespeicher
-- Wiederaufnahme nach App-Abbruch und Neustart
+- manual tests with TalkBack on at least one Google and one Samsung device
+- tests with the screen switched off
+- tests with Bluetooth headphones and a wired headset
+- Accessibility Scanner and automated Compose semantics tests
+- listening tests at several speeds
+- airplane mode, a poor connection and an exhausted cloud limit
+- large PDFs and tight device storage
+- resuming after the app is killed and after a restart
 
-## 12. Offene Entscheidungen
+## 12. Open decisions
 
-- endgueltiger Projektname
-- Zielversionen von Android und Referenzgeraete
-- bevorzugte Stimmen nach ihrem Hoertest
-- Lizenz fuer App und einen moeglichen Gemeinschaftsserver
-- erste PDF-Bibliothek
-- eigener Cloud-Zugang oder spaeterer Gemeinschaftsdienst
-- APK-Verteilung oder Google Play Store
-- Umfang von EPUB, Word-Dokumenten und Webseiten nach dem PDF-MVP
-- Zeitpunkt und Umfang einer spaeteren nativen iOS-Version
+- the final project name
+- the target Android versions and the reference devices
+- the preferred voices after her listening test
+- the license for the app and for a possible community server
+- the first PDF library
+- the user's own cloud account or a later community service
+- APK distribution or the Google Play Store
+- the scope of EPUB, Word documents and web pages after the PDF MVP
+- the timing and scope of a later native iOS version
 
-## 13. Naechste konkrete Schritte
+## 13. Next concrete steps
 
-1. Zwei- bis fuenfminuetige Hoerproben mit identischem Text erzeugen.
-2. Die Testnutzerin laesst Stimmen, Geschwindigkeit und Aussprache bewerten.
-3. Ihr Smartphone-Modell und die Android-Version erfassen.
-4. Einen kleinen TalkBack-faehigen Audioplayer mit Sprachbefehlen bauen.
-5. Den ersten Test gemeinsam ohne Sicht durchgehen.
+1. Generate two to five minute listening samples with identical text.
+2. Have the test user rate voices, speed and pronunciation.
+3. Record her smartphone model and Android version.
+4. Build a small TalkBack capable audio player with voice commands.
+5. Go through the first test together without sight.
