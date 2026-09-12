@@ -3,6 +3,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+// Signing credentials live outside this repository, in ~/.gradle/gradle.properties, and are never committed.
+// Without them the release build stays unsigned, so anyone can still clone and build this project.
+val readerStoreFile: String? = (findProperty("READER_STORE_FILE") as String?)?.takeIf { File(it).isFile }
+val readerStorePassword = findProperty("READER_STORE_PASSWORD") as String?
+val readerKeyAlias = findProperty("READER_KEY_ALIAS") as String?
+val readerKeyPassword = findProperty("READER_KEY_PASSWORD") as String?
+val canSign = readerStoreFile != null && readerStorePassword != null && readerKeyAlias != null && readerKeyPassword != null
+
 android {
     namespace = "de.schimmilab.accessiblereader"
     compileSdk = 36
@@ -11,9 +19,31 @@ android {
         applicationId = "de.schimmilab.accessiblereader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.4.2"
+        versionCode = 11
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    if (canSign) {
+        signingConfigs {
+            create("release") {
+                storeFile = File(readerStoreFile!!)
+                storePassword = readerStorePassword
+                keyAlias = readerKeyAlias
+                keyPassword = readerKeyPassword
+                // v3 carries the proof needed to rotate this key later. Without it the project would be
+                // tied to this one key forever, and it exists on a single machine.
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+    buildTypes {
+        release {
+            // Left off deliberately: Media3 and PDFBox use reflection, and shrinking them without
+            // tested keep rules risks breaking playback in a build nobody can debug.
+            isMinifyEnabled = false
+            if (canSign) signingConfig = signingConfigs.getByName("release")
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
