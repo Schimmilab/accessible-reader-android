@@ -19,8 +19,8 @@ android {
         applicationId = "de.schimmilab.accessiblereader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 12
-        versionName = "0.5.1"
+        versionCode = 13
+        versionName = "0.6.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     if (canSign) {
@@ -66,11 +66,15 @@ dependencies {
     implementation("androidx.media3:media3-session:1.9.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    // Text recognition for scanned pages. The model ships inside the APK, so it runs with no network at all;
+    // the manifest strips the INTERNET permission the library brings along.
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.test:runner:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

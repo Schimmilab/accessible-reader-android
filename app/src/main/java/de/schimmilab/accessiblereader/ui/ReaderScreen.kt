@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.schimmilab.accessiblereader.ReaderState
 import de.schimmilab.accessiblereader.ReaderViewModel
+import de.schimmilab.accessiblereader.core.voicesHeading
 import java.util.Locale
 
 private val LightColors = lightColorScheme(primary = Color(0xFF075E52), onPrimary = Color.White,
@@ -208,7 +209,12 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                         Text(engine.value, Modifier.padding(start = 8.dp))
                     }
                 }
-                item { Text("Stimmen", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }) }
+                // Names the engine on purpose: a report listed 17 voices for one engine while the app offered the
+                // four of another, and nothing on this screen said which engine the list belonged to.
+                item {
+                    Text(voicesHeading(s.engines[s.engineId], s.voices.size),
+                        style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() })
+                }
                 if (s.voices.isEmpty()) item { Text("Diese Sprachausgabe meldet keine deutsche Stimme. Bitte oben eine andere wählen.") }
                 itemsIndexed(s.voices) { _, voice ->
                     // Two separate focus targets: choosing the voice, and hearing it. Nesting them would trap TalkBack.

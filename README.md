@@ -74,7 +74,8 @@ Device tests need an emulator or phone with German offline voice data. Pass one 
 
 ## Limits
 
-- **Scanned PDFs need OCR, which is missing.** A scan is refused after a sample of 25 pages rather than after reading the whole book, and the message names text recognition as the thing that is missing.
+- **Scanned pages are read by on-device text recognition.** A page without a text layer is rendered and recognized, measured at about 1.2 seconds per page on an emulator, so a 500-page scan costs around ten minutes once, while importing and with progress reported. It runs with the radios switched off; the recognition model sits inside the APK and the manifest removes the network permissions the library declares. Recognition makes mistakes, and the document notice says how many pages went through it.
+- A book where neither extraction nor recognition finds writing is refused after a sample of 25 pages, not after reading it all.
 - Running page numbers, soft hyphens and words cut in half by a page break are repaired before speaking. Six real books, 524 to 8 pages, were imported and read to verify this.
 - Maximum 120 MB, 3000 pages, six million extracted characters per PDF. A generated 600-page novel imports in four seconds on an emulator.
 - Bookmarks map to page starts. Several bookmarks on one page collapse into one entry. Tables, footnotes and multi-column layouts can come out in the wrong reading order, and a two-column page can interleave its columns sentence by sentence.

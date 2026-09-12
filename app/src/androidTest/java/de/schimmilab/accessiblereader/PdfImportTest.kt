@@ -66,8 +66,8 @@ class PdfImportTest {
     }
 
     /**
-     * A scanned book used to be read to the very last page before the app admitted it was useless.
-     * For a 500-page scan that is minutes of waiting for a no.
+     * Blank pages carry nothing for either text extraction or recognition. The app used to work through to the
+     * very last page before admitting it, and for a 500-page book that is minutes of waiting for a no.
      */
     @Test fun aScannedBookIsRejectedAfterASampleRatherThanAtTheEnd() = runBlocking {
         val pages = 200
@@ -80,26 +80,71 @@ class PdfImportTest {
             file.outputStream().use(pdf::writeTo)
             pdf.close()
 
+            // Counted from the message, not from the number of callbacks: a scanned page reports twice, once for
+            // reading it and once for recognizing it.
             var read = 0
-            val error = runCatching { DocumentStore(context).importPdf(Uri.fromFile(file)) { read++ } }.exceptionOrNull()
+            val number = Regex("Seite (\\d+) von")
+            val error = runCatching {
+                DocumentStore(context).importPdf(Uri.fromFile(file)) { message ->
+                    number.find(message)?.groupValues?.get(1)?.toInt()?.let { read = maxOf(read, it) }
+                }
+            }.exceptionOrNull()
 
-            assertNotNull("A scan has to be refused", error)
-            assertTrue(error!!.message!!, error.message!!.contains("keinen Text"))
-            assertTrue("The message has to name text recognition as what is missing",
+            assertNotNull("A book without any writing has to be refused", error)
+            assertTrue(error!!.message!!, error.message!!.contains("keine Schrift"))
+            assertTrue("The message has to say that recognition was tried too",
                 error.message!!.contains("Texterkennung"))
             assertTrue("Read $read of $pages pages before giving up, that is too many",
                 read <= DocumentStore.SCAN_PROBE_PAGES + 2)
         } finally { runCatching { pdf.close() }; file.delete() }
     }
 
-    @Test fun imageOnlyPdfReportsMissingOcr() = runBlocking {
+    @Test fun aPdfWithoutAnyWritingIsRefused() = runBlocking {
         val file = fixture(true)
         try {
             val error = runCatching { DocumentStore(context).importPdf(Uri.fromFile(file)) {} }.exceptionOrNull()
             assertNotNull(error)
-            // A short scan cannot be caught by the sample, so the check at the end has to say the same thing.
-            assertTrue(error!!.message!!, error.message!!.contains("keinen Text"))
+            // Too short to be caught by the sample, so the check at the end has to say the same thing.
+            assertTrue(error!!.message!!, error.message!!.contains("keine Schrift"))
             assertTrue(error.message!!.contains("Texterkennung"))
         } finally { file.delete() }
+    }
+
+    /**
+     * The point of the whole exercise: most books our test reader owns are scans, and a scan holds no text
+     * objects at all. Here the words exist only as pixels, exactly as they do in a scanned book.
+     */
+    @Test fun aScannedPageIsReadByTextRecognition() = runBlocking {
+        val file = File.createTempFile("reader-scanned", ".pdf", context.cacheDir)
+        val pdf = PdfDocument()
+        try {
+            repeat(2) { index ->
+                val page = pdf.startPage(PdfDocument.PageInfo.Builder(1240, 1754, index + 1).create())
+                // Painted into a bitmap first: that leaves pixels behind instead of text objects.
+                val paper = android.graphics.Bitmap.createBitmap(1240, 1754, android.graphics.Bitmap.Config.ARGB_8888)
+                android.graphics.Canvas(paper).apply {
+                    drawColor(android.graphics.Color.WHITE)
+                    val ink = Paint().apply { color = android.graphics.Color.BLACK; textSize = 54f; isAntiAlias = true }
+                    drawText("Der Garten war still.", 90f, 300f, ink)
+                    drawText("Seite ${index + 1} wurde erkannt.", 90f, 420f, ink)
+                }
+                page.canvas.drawBitmap(paper, 0f, 0f, null)
+                paper.recycle()
+                pdf.finishPage(page)
+            }
+            file.outputStream().use(pdf::writeTo)
+            pdf.close()
+
+            val started = System.currentTimeMillis()
+            val document = DocumentStore(context).importPdf(Uri.fromFile(file)) {}
+            val seconds = (System.currentTimeMillis() - started) / 1000.0
+            val text = document.chapters.joinToString("\n") { it.text }
+            android.util.Log.i("ReaderImportTest", "Scan erkannt in $seconds s: ${text.replace("\n", " ⏎ ")}")
+
+            assertTrue("Recognition missed the sentence entirely: $text", text.contains("Der Garten war still"))
+            assertTrue("Recognition did not reach the second page: $text", text.contains("Seite 2"))
+            assertTrue("The notice has to admit that recognition was used",
+                document.notice.contains("Texterkennung"))
+        } finally { runCatching { pdf.close() }; file.delete() }
     }
 }

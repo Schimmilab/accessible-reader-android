@@ -26,12 +26,12 @@ class DocumentStore(private val context: Context) {
         const val MAX_PAGES = 3000
         const val MAX_CHARACTERS = 6_000_000
 
-        /** How many pages without a single character are enough to call a document a scan. */
+        /** How many pages without a single character are enough to give up, recognition included. */
         const val SCAN_PROBE_PAGES = 25
 
         fun scanMessage(pagesChecked: Int): String =
-            if (pagesChecked == 1) "Diese Seite enthält keinen Text, sie ist ein Bild. Der Reader kann Bilder noch nicht lesen, dafür fehlt ihm die Texterkennung."
-            else "Dieses PDF enthält keinen Text. Die ersten $pagesChecked Seiten sind Bilder, also ein Scan. Der Reader kann Bilder noch nicht lesen, dafür fehlt ihm die Texterkennung."
+            if (pagesChecked == 1) "Auf dieser Seite steht keine Schrift. Auch die Texterkennung hat nichts gefunden."
+            else "In diesem PDF steht keine Schrift. Auch die Texterkennung hat auf den ersten $pagesChecked Seiten nichts gefunden. Wahrscheinlich sind es Fotos oder die Vorlage ist zu undeutlich."
     }
 
     private val directory = File(context.filesDir, "documents").apply { mkdirs() }
@@ -126,20 +126,34 @@ class DocumentStore(private val context: Context) {
                 }
                 val stripper = PDFTextStripper().apply { sortByPosition = true }
                 var characters = 0
-                val pages = (1..pdf.numberOfPages).map { page ->
+                var recognized = 0
+                // Opened only when a page turns out to be a scan, because it costs memory and a model.
+                var ocr: PageOcr? = null
+                val pages = try { (1..pdf.numberOfPages).map { page ->
                     coroutineContext.ensureActive()
                     progress("Lese Seite $page von ${pdf.numberOfPages} …")
                     stripper.startPage = page
                     stripper.endPage = page
-                    TextChunks.clean(stripper.getText(pdf)).also {
+                    var text = TextChunks.clean(stripper.getText(pdf))
+                    if (text.isBlank()) {
+                        progress("Seite $page von ${pdf.numberOfPages} ist ein Bild, Texterkennung läuft …")
+                        if (ocr == null) ocr = runCatching { PageOcr(temp) }.getOrNull()
+                        ocr?.let { reader ->
+                            if (page - 1 < reader.pageCount) {
+                                text = TextChunks.clean(reader.text(page - 1))
+                                if (text.isNotBlank()) recognized++
+                            }
+                        }
+                    }
+                    text.also {
                         characters += it.length
                         require(characters <= MAX_CHARACTERS) { "Dieses PDF enthält mehr als ${MAX_CHARACTERS / 1_000_000} Millionen Zeichen. Das ist mehr Text, als der Reader auf einmal verarbeiten kann." }
-                        // Say it after a sample instead of reading a 500-page scan to the end first. A book with
-                        // this many leading pages and not one character is a scan, and waiting minutes for that
-                        // verdict is the worst part of it.
+                        // Give up after a sample instead of working through a 500-page book first. Text extraction
+                        // and recognition have both failed on this many leading pages, and waiting minutes for
+                        // that verdict is the worst part of it.
                         require(!(page >= SCAN_PROBE_PAGES && characters == 0)) { scanMessage(page) }
                     }
-                }
+                } } finally { ocr?.close() }
                 require(pages.any { it.isNotBlank() }) { scanMessage(pdf.numberOfPages) }
                 val marks = mutableListOf<Pair<Int, String>>()
                 fun collect(node: PDOutlineNode, depth: Int) {
@@ -168,7 +182,8 @@ class DocumentStore(private val context: Context) {
                 val emptyPages = pages.count { it.isBlank() }
                 val notice = listOfNotNull(
                     if (!hasOutline) "Keine Kapitelmarken gefunden. Das Inhaltsverzeichnis listet die Seiten." else "PDF-Kapitelmarken übernommen. Sprünge beginnen an der jeweiligen Seite.",
-                    if (emptyPages > 0) "$emptyPages Seiten ohne lesbaren Text. Eingescannte Inhalte werden noch nicht erkannt." else null,
+                    if (recognized > 0) "$recognized eingescannte Seiten wurden mit Texterkennung gelesen. Dabei können Lesefehler entstehen." else null,
+                    if (emptyPages > 0) "$emptyPages Seiten ohne lesbaren Text, auch die Texterkennung fand dort nichts." else null,
                     "Bei Spalten, Tabellen und Fußnoten bitte die Lesereihenfolge prüfen."
                 ).joinToString(" ")
                 ReaderDocument(id, title, chapters, notice).also {

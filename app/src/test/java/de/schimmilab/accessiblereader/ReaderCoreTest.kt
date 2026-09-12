@@ -51,6 +51,12 @@ class ReaderCoreTest {
         // A stale saved chapter from an older import must not produce a label beyond the document.
         assertEquals("Der Garten, 12 Abschnitte, zuletzt bei Abschnitt 12 von 12.", libraryLabel(entry, 99, started = true))
     }
+    @Test fun theVoiceListSaysWhichEngineItBelongsTo() {
+        assertEquals("Stimmen von Google: 5", voicesHeading("Google", 5))
+        assertEquals("Stimmen von Vocalizer TTS: 1", voicesHeading("Vocalizer TTS", 1))
+        assertEquals("Stimmen von Samsung TTS: keine", voicesHeading("Samsung TTS", 0))
+        assertEquals("Stimmen von dieser Sprachausgabe: 3", voicesHeading(null, 3))
+    }
     @Test fun libraryIsReachableByVoice() {
         assertEquals(ReaderCommand.Library, CommandParser.parse("Bibliothek"))
         assertEquals(ReaderCommand.Library, CommandParser.parse("Meine Bücher"))

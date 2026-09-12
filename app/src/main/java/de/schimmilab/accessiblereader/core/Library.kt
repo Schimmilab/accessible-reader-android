@@ -28,3 +28,13 @@ fun libraryLabel(entry: LibraryEntry, savedChapter: Int, started: Boolean): Stri
     val progress = if (started) "zuletzt bei Abschnitt $chapter von ${entry.chapters}" else "noch nicht gehört"
     return "${entry.title}, $count, $progress."
 }
+
+/**
+ * Names the engine whose voices are listed. One device reported 17 German voices for its Google engine while
+ * the app offered the four of another engine, and the screen gave no way to tell the two apart.
+ */
+fun voicesHeading(engineLabel: String?, count: Int): String {
+    val engine = engineLabel?.takeIf { it.isNotBlank() } ?: "dieser Sprachausgabe"
+    if (count == 0) return "Stimmen von $engine: keine"
+    return if (count == 1) "Stimmen von $engine: 1" else "Stimmen von $engine: $count"
+}
