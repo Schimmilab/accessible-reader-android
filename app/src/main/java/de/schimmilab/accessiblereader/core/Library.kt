@@ -93,3 +93,20 @@ fun voiceLabel(index: Int, country: String, needsNetwork: Boolean): String {
     val place = country.ifBlank { "lokal" }
     return if (needsNetwork) "Deutsch ${index + 1} · $place · braucht Internet" else "Deutsch ${index + 1} · $place"
 }
+
+/**
+ * What to tell a listener about the speed of a voice, once the app has measured it. [ratio] is the time the
+ * engine needed divided by the length of the audio it produced, so 0.03 means thirty times faster than
+ * listening and 1.0 means exactly as slow.
+ *
+ * This matters because it decides whether a book plays through or keeps stopping to catch up, and it is
+ * invisible from the outside: a local neural voice sounds better and takes thirty times longer to produce.
+ * Returns null for a voice that is comfortably ahead, where there is nothing worth saying.
+ */
+fun voiceSpeedNote(ratio: Double): String? = when {
+    ratio < 0.5 -> null
+    ratio < 0.9 -> "Diese Stimme braucht zum Erzeugen etwa die halbe Hörzeit. Der Anfang kommt etwas später."
+    else -> "Diese Stimme braucht zum Erzeugen ungefähr so lange, wie das Zuhören dauert. " +
+        "Der Anfang kommt später, und bei langen Abschnitten kann es kurze Pausen geben. " +
+        "Eine andere Stimme liest flüssiger."
+}

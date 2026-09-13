@@ -232,6 +232,9 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                             modifier = Modifier.heightIn(min = 56.dp).semantics { contentDescription = "Hörprobe für ${voice.label}" }) { Text("Probe") }
                     }
                 }
+                // Only appears once the app has actually timed this voice. A voice that cannot keep up with
+                // listening decides whether a book plays through, and nothing else on this screen shows it.
+                s.voiceSpeed?.let { note -> item { Text(note, style = MaterialTheme.typography.bodyMedium) } }
                 item { Text("Stimmen aus dem Internet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }) }
                 item {
                     Text("Manche Stimmen holen ihre Sprache aus dem Internet und klingen besser. Die App selbst geht " +

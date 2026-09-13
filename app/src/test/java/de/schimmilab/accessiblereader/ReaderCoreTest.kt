@@ -101,6 +101,16 @@ class ReaderCoreTest {
         // A stale saved chapter from an older import must not produce a label beyond the document.
         assertEquals("Der Garten, 12 Abschnitte, zuletzt bei Abschnitt 12 von 12.", libraryLabel(entry, 99, started = true))
     }
+    @Test fun aVoiceThatCannotKeepUpSaysSo() {
+        // Measured on an emulator: the stock Google voice needs about 0.04 of the listening time, the local
+        // neural one between 0.6 and 1.2. The second kind decides whether a book plays through.
+        assertNull("A voice far ahead of listening needs no comment", voiceSpeedNote(0.04))
+        assertNull(voiceSpeedNote(0.49))
+        assertTrue(voiceSpeedNote(0.65)!!.contains("halbe Hörzeit"))
+        val slow = voiceSpeedNote(1.05)!!
+        assertTrue(slow.contains("so lange, wie das Zuhören dauert"))
+        assertTrue("It has to name the way out", slow.contains("andere Stimme"))
+    }
     @Test fun theVoiceListSaysWhichEngineItBelongsTo() {
         assertEquals("Stimmen von Google: 5", voicesHeading("Google", 5))
         assertEquals("Stimmen von Vocalizer TTS: 1", voicesHeading("Vocalizer TTS", 1))

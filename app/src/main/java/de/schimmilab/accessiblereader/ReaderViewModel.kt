@@ -46,6 +46,8 @@ data class ReaderState(
     val cacheBytes: Long = 0, val listening: Boolean = false,
     val report: String = "",
     val onlineVoices: OnlineVoicePolicy = OnlineVoicePolicy.WIFI_ONLY,
+    /** What was measured about the speed of the chosen voice, or null while nothing has been measured yet. */
+    val voiceSpeed: String? = null,
     // Separate from busy: a running diagnosis must not lock the screen someone is waiting in front of.
     val diagnosing: Boolean = false,
     val library: List<LibraryItem> = emptyList(), val showLibrary: Boolean = false, val pendingRemoval: String? = null,
@@ -139,6 +141,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 .getOrDefault(OnlineVoicePolicy.WIFI_ONLY)
             mutable.update { current -> current.copy(voices = voices, engines = engines, engineId = chosen, onlineVoices = policy,
                 voiceId = voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id ?: voices.firstOrNull()?.id.orEmpty(),
+                voiceSpeed = measuredSpeed(voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id
+                    ?: voices.firstOrNull()?.id.orEmpty()),
                 status = if (voices.isEmpty())
                     "Diese Sprachausgabe meldet keine deutsche Stimme. Bitte in Stimme und Einstellungen eine andere Sprachausgabe wählen."
                 else current.status) }
@@ -229,8 +233,12 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 var startOffset = 0L
                 texts.forEachIndexed { i, text ->
                     if (!started && !quiet) mutable.update { it.copy(status = "Bereite Audio vor: Teil ${i + 1} von ${texts.size}.") }
+                    val began = System.currentTimeMillis()
                     val part = speech.synthesize(text, s.voiceId)
                     ensureActive()
+                    // Only real work counts. A cache hit costs nothing and would make every voice look instant.
+                    if (!part.fromCache && part.durationMs > 0) recordVoiceSpeed(s.voiceId,
+                        System.currentTimeMillis() - began, part.durationMs)
                     val extra = Bundle().apply {
                         putString("document", s.document.id); putInt("chapter", s.chapter); putString("voice", s.voiceId)
                         putLong("duration", part.durationMs)
@@ -345,7 +353,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         stopPreparation()
         pause(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
         prefs.edit().putString("voice", id).apply()
-        mutable.update { it.copy(voiceId = id, durationMs = 0, positionMs = 0, status = "Stimme gewechselt. Dieses Kapitel beginnt beim nächsten Start von vorne.") }
+        mutable.update { it.copy(voiceId = id, durationMs = 0, positionMs = 0, voiceSpeed = measuredSpeed(id),
+            status = "Stimme gewechselt. Dieses Kapitel beginnt beim nächsten Start von vorne.") }
     }
     fun library(open: Boolean) {
         mutable.update { it.copy(showLibrary = open) }
@@ -415,6 +424,30 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return NetworkKind.NONE
         return if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)) NetworkKind.UNMETERED
         else NetworkKind.METERED
+    }
+
+    /**
+     * Keeps a running measurement of how long this voice needs per second of audio, and puts it in front of the
+     * listener. Whether a voice can keep up decides whether a book plays through or keeps stopping, and it is
+     * invisible from the outside: the neural voice sounds better and needs thirty times longer than the stock one.
+     *
+     * Averaged over everything measured so far for that voice, so one slow first piece does not label it.
+     */
+    private fun recordVoiceSpeed(voiceId: String, synthesisMs: Long, audioMs: Long) {
+        val key = "speed.${voiceId}"
+        val previousWork = prefs.getLong("$key.work", 0) + synthesisMs
+        val previousAudio = prefs.getLong("$key.audio", 0) + audioMs
+        prefs.edit().putLong("$key.work", previousWork).putLong("$key.audio", previousAudio).apply()
+        if (previousAudio <= 0) return
+        val note = voiceSpeedNote(previousWork.toDouble() / previousAudio)
+        if (note != state.value.voiceSpeed) mutable.update { it.copy(voiceSpeed = note) }
+    }
+
+    /** Reads back what was measured for a voice earlier, so the note survives a restart. */
+    private fun measuredSpeed(voiceId: String): String? {
+        val audio = prefs.getLong("speed.$voiceId.audio", 0)
+        if (audio <= 0) return null
+        return voiceSpeedNote(prefs.getLong("speed.$voiceId.work", 0).toDouble() / audio)
     }
 
     fun onlineVoices(policy: OnlineVoicePolicy) {

@@ -16,7 +16,8 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 data class ReaderVoice(val id: String, val label: String, val needsNetwork: Boolean = false)
-data class SpeechAudio(val file: File, val durationMs: Long)
+/** [fromCache] tells a measurement apart from a file that was already there; a cache hit costs no time. */
+data class SpeechAudio(val file: File, val durationMs: Long, val fromCache: Boolean = false)
 
 /** Providers return reusable audio. Cloud implementations must enforce consent and budget before synthesis. */
 interface SpeechProvider {
@@ -119,7 +120,10 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
         if (file.isFile && file.length() > 44) {
             val duration = duration(file)
             // Touch it so trimCache treats recently heard chapters as recently used, not as old.
-            if (duration > 0) { file.setLastModified(System.currentTimeMillis()); return@withLock SpeechAudio(file, duration) }
+            if (duration > 0) {
+                file.setLastModified(System.currentTimeMillis())
+                return@withLock SpeechAudio(file, duration, fromCache = true)
+            }
         }
         val temp = File(cache, "$key.part.wav")
         val id = UUID.randomUUID().toString()
