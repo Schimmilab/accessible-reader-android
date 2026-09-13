@@ -1,6 +1,9 @@
 package de.schimmilab.accessiblereader
 
 import de.schimmilab.accessiblereader.core.Epub
+import de.schimmilab.accessiblereader.core.groupTitledSections
+import de.schimmilab.accessiblereader.core.sectionTitle
+import de.schimmilab.accessiblereader.core.splitOversized
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -61,8 +64,13 @@ class EpubTest {
             <li><a href="text/kapitel2.xhtml#start">Zweites Kapitel</a></li>
             <li><a href="text/kapitel2.xhtml#spaeter">Ein Abschnitt darin</a></li></ol></nav>"""
         val fromNav = Epub.tableOfContents(nav, "OEBPS/nav.xhtml")
-        assertEquals("Erstes Kapitel", fromNav["OEBPS/text/kapitel1.xhtml"])
-        assertEquals("The first label for a document wins", "Zweites Kapitel", fromNav["OEBPS/text/kapitel2.xhtml"])
+        assertEquals(3, fromNav.size)
+        assertEquals("Erstes Kapitel", fromNav[0].title)
+        assertNull(fromNav[0].fragment)
+        assertEquals("OEBPS/text/kapitel2.xhtml", fromNav[1].path)
+        assertEquals("A chapter inside a file is kept, anchor and all", "start", fromNav[1].fragment)
+        assertEquals("spaeter", fromNav[2].fragment)
+        assertEquals("Ein Abschnitt darin", fromNav[2].title)
 
         val ncx = """<navMap>
             <navPoint id="a" playOrder="1"><navLabel><text>Erstes Kapitel</text></navLabel>
@@ -70,8 +78,8 @@ class EpubTest {
             <navPoint id="b" playOrder="2"><navLabel><text>Zweites Kapitel</text></navLabel>
               <content src="ch2.html"/></navPoint></navMap>"""
         val fromNcx = Epub.tableOfContents(ncx, "OEBPS/toc.ncx")
-        assertEquals("Erstes Kapitel", fromNcx["OEBPS/ch1.html"])
-        assertEquals("Zweites Kapitel", fromNcx["OEBPS/ch2.html"])
+        assertEquals(listOf("Erstes Kapitel", "Zweites Kapitel"), fromNcx.map { it.title })
+        assertEquals(listOf("OEBPS/ch1.html", "OEBPS/ch2.html"), fromNcx.map { it.path })
     }
 
     @Test fun relativePathsAreResolvedAgainstWhereTheyWereWritten() {
@@ -100,5 +108,68 @@ class EpubTest {
             Regex("Erstes Kapitel\\s*\\n").containsMatchIn(text))
         assertTrue("A line break inside a paragraph is a line break",
             Regex("Zweiter Absatz\\s*\\n\\s*mit Umbruch").containsMatchIn(text))
+    }
+
+    @Test fun aDocumentIsCutWhereItsContentsPointIntoIt() {
+        // One real book puts fifty chapters into four files and tells them apart by the anchor alone.
+        val html = """<html><body><p>Vorspann</p>
+            <h2 id="k1">Erstes Kapitel</h2><p>Der Garten war still.</p>
+            <h2 id="k2">Zweites Kapitel</h2><p>Der Brief lag auf dem Tisch.</p></body></html>"""
+        val pieces = Epub.split(html, listOf("k1", "k2"))
+        assertEquals(3, pieces.size)
+        assertNull("What comes before the first anchor belongs to whatever was read before", pieces[0].first)
+        assertTrue(pieces[0].second.contains("Vorspann"))
+        assertEquals("k1", pieces[1].first)
+        assertTrue(pieces[1].second.contains("Der Garten war still"))
+        assertFalse("A piece must not contain the next one", pieces[1].second.contains("Der Brief"))
+        assertEquals("k2", pieces[2].first)
+
+        // An anchor the document does not actually have must not lose the text.
+        val whole = Epub.split(html, listOf("gibtsnicht"))
+        assertEquals(1, whole.size)
+        assertTrue(whole[0].second.contains("Der Brief lag auf dem Tisch"))
+        assertEquals(1, Epub.split(html, emptyList()).size)
+    }
+
+    @Test fun aSectionNobodyCouldSitThroughIsCutDown() {
+        // One real book is a single file of half a million characters: about nine hours with no way to move.
+        val long = "Ein Satz über den Garten und den Brief, der lange genug ist. ".repeat(2_000)
+        val parts = splitOversized("Das ganze Buch", long)
+        assertTrue("120.000 characters have to become several parts, got ${parts.size}", parts.size >= 4)
+        assertEquals("Das ganze Buch, Teil 1", parts.first().first)
+        // Nothing may be lost. Only the whitespace at each cut disappears, so at most one character per part.
+        val kept = parts.sumOf { it.second.length }
+        assertTrue("Lost text: $kept of ${long.trim().length}", kept >= long.trim().length - parts.size)
+        assertTrue(kept <= long.trim().length)
+        assertTrue("No part may be empty", parts.all { it.second.isNotBlank() })
+        assertTrue("No part may stay oversized", parts.all { it.second.length <= 30_000 })
+        // A normal section is left exactly as it is.
+        assertEquals(listOf("Kapitel" to "kurzer Text"), splitOversized("Kapitel", "kurzer Text"))
+    }
+
+    @Test fun anOverGranularContentsIsFoldedIntoSectionsWorthListeningTo() {
+        // One real book names 565 entries for 754.000 characters, so every "next section" would move two minutes.
+        val titles = List(30) { "Kapitel ${it + 1}" }
+        val short = List(30) { 1_000 }
+        val folded = groupTitledSections(titles, short, target = 10_000)
+        assertEquals("Thirty short entries have to become three sections", 3, folded.size)
+        assertEquals(listOf(0, 10, 20), folded)
+
+        // A book whose chapters are long enough keeps every one of them.
+        val long = List(5) { 20_000 }
+        assertEquals(listOf(0, 1, 2, 3, 4), groupTitledSections(List(5) { "Kapitel" }, long, target = 10_000))
+
+        // Untitled blocks never start a section, they belong to what is being read.
+        assertEquals(listOf(0), groupTitledSections(listOf("Anfang", null, null), listOf(9_000, 9_000, 9_000), 10_000))
+    }
+
+    @Test fun aTitleThatIsOnlyANumberIsNotRead() {
+        // One real book carries page labels in its contents, and "Abschnitt 5: 217" helps nobody.
+        assertEquals("Teil 3", sectionTitle("217", 2))
+        assertEquals("Teil 1", sectionTitle(null, 0))
+        assertEquals("Teil 2", sectionTitle("  ", 1))
+        assertEquals("Teil 4", sectionTitle("IV.", 3))
+        assertEquals("Kapitel 3", sectionTitle("Kapitel 3", 5))
+        assertEquals("1 Introduction", sectionTitle("1 Introduction", 0))
     }
 }

@@ -37,6 +37,61 @@ fun groupPagesIntoSections(pageLengths: List<Int>, target: Int = SECTION_TARGET_
     return starts
 }
 
+/**
+ * Where a new section starts among blocks that carry their own titles.
+ *
+ * A book's own table of contents is not always a useful shape to listen to. One real book names 565 entries for
+ * 754.000 characters, so every "next section" would move about two minutes and the spoken section number would
+ * interrupt that often. A titled block therefore starts a new section only once the current one has grown to
+ * roughly [target]; otherwise it is folded into what is being read.
+ */
+fun groupTitledSections(titles: List<String?>, lengths: List<Int>, target: Int = SECTION_TARGET_CHARACTERS): List<Int> {
+    if (lengths.isEmpty()) return emptyList()
+    val starts = mutableListOf(0)
+    var carried = 0
+    lengths.forEachIndexed { index, length ->
+        if (index > 0 && titles.getOrNull(index) != null && carried >= target) { starts += index; carried = 0 }
+        carried += length
+    }
+    return starts
+}
+
+private val NUMBER_ONLY = Regex("""[\d.,\s]+|[ivxlcdm]+\.?|[IVXLCDM]+\.?""")
+
+/**
+ * What a section is called. A title that is nothing but a number is a page label the book happens to carry in
+ * its contents, and reading "Abschnitt 5: 217" out loud helps nobody.
+ */
+fun sectionTitle(raw: String?, index: Int): String {
+    val clean = raw?.trim().orEmpty()
+    return if (clean.isBlank() || NUMBER_ONLY.matches(clean)) "Teil ${index + 1}" else clean
+}
+
+/**
+ * Cuts a section that nobody would want to sit through into parts a listener can navigate. One real book is a
+ * single file of half a million characters, which is about nine hours in one piece with no way to move inside it.
+ */
+fun splitOversized(title: String, text: String, target: Int = SECTION_TARGET_CHARACTERS,
+                   limit: Int = SECTION_TARGET_CHARACTERS * 3): List<Pair<String, String>> {
+    if (text.length <= limit) return listOf(title to text)
+    val parts = mutableListOf<Pair<String, String>>()
+    var rest = text
+    while (rest.isNotEmpty()) {
+        if (rest.length <= limit) { parts += title to rest; break }
+        // Cut at a paragraph if there is one nearby, otherwise at a sentence, never inside a word.
+        val window = rest.substring(0, minOf(limit, rest.length))
+        val cut = window.lastIndexOf("\n\n").takeIf { it > target / 2 }
+            ?: window.lastIndexOfAny(charArrayOf('.', '!', '?')).takeIf { it > target / 2 }?.plus(1)
+            ?: window.lastIndexOf(' ').takeIf { it > target / 2 }
+            ?: window.length
+        parts += title to rest.substring(0, cut).trim()
+        rest = rest.substring(cut).trimStart()
+    }
+    return parts.mapIndexed { index, (name, body) ->
+        (if (parts.size > 1) "$name, Teil ${index + 1}" else name) to body
+    }
+}
+
 /** What a section of a book without bookmarks is called. */
 fun pageRangeTitle(firstPage: Int, lastPage: Int): String =
     if (firstPage >= lastPage) "Seite $firstPage" else "Seiten $firstPage bis $lastPage"

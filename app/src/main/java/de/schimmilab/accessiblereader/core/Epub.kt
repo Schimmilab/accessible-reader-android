@@ -57,22 +57,32 @@ object Epub {
             order, contents)
     }
 
+    /** One entry of the book's own table of contents, in the order the book lists it. */
+    data class Entry(val path: String, val fragment: String?, val title: String)
+
     /**
-     * Chapter titles by the document they point at, from an EPUB 3 navigation document or an EPUB 2 NCX. Both
-     * are handled the same way here: every link with a visible label. The first label for a document wins,
-     * because a table of contents may point several times into the same file.
+     * The book's table of contents, from an EPUB 3 navigation document or an EPUB 2 NCX. Both are read the same
+     * way: every link with a visible label, in order.
+     *
+     * The fragment matters. Real books routinely put fifty chapters into four files and tell them apart only by
+     * the anchor they point at, so throwing the fragment away would throw away the chapters with it.
      */
-    fun tableOfContents(xml: String, contentsPath: String): Map<String, String> {
+    fun tableOfContents(xml: String, contentsPath: String): List<Entry> {
         val base = contentsPath.substringBeforeLast('/', "")
-        val titles = LinkedHashMap<String, String>()
-        // EPUB 3: <a href="ch1.xhtml">Erstes Kapitel</a>
-        Regex("""<a\s[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>""",
-            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).findAll(xml).forEach { match ->
-            val target = resolve(base, match.groupValues[1].substringBefore('#'))
-            val label = text(match.groupValues[2]).trim()
-            if (label.isNotBlank()) titles.putIfAbsent(target, label)
+        val entries = LinkedHashMap<String, Entry>()
+        fun add(href: String, label: String) {
+            val clean = text(label).trim()
+            if (clean.isBlank()) return
+            val path = resolve(base, href.substringBefore('#'))
+            val fragment = href.substringAfter('#', "").takeIf { it.isNotBlank() }
+            entries.putIfAbsent("$path#${fragment.orEmpty()}", Entry(path, fragment, clean))
         }
-        // EPUB 2: <navLabel><text>Erstes Kapitel</text></navLabel><content src="ch1.xhtml"/>
+        // EPUB 3: <a href="ch1.xhtml#k2">Zweites Kapitel</a>
+        Regex("""<a\s[^>]*href\s*=\s*["']([^"']+)["'][^>]*>(.*?)</a>""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).findAll(xml).forEach {
+            add(it.groupValues[1], it.groupValues[2])
+        }
+        // EPUB 2: <navLabel><text>Zweites Kapitel</text></navLabel><content src="ch1.xhtml#k2"/>
         Regex("""<navPoint[^>]*>(.*?)(?=<navPoint|</navMap)""",
             setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).findAll(xml).forEach { match ->
             val block = match.groupValues[1]
@@ -80,12 +90,32 @@ object Epub {
                 setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).find(block)?.groupValues?.get(1)
             val src = Regex("""<content[^>]*src\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
                 .find(block)?.groupValues?.get(1)
-            if (label != null && src != null) {
-                val clean = text(label).trim()
-                if (clean.isNotBlank()) titles.putIfAbsent(resolve(base, src.substringBefore('#')), clean)
-            }
+            if (label != null && src != null) add(src, label)
         }
-        return titles
+        return entries.values.toList()
+    }
+
+    /**
+     * Cuts one document at the anchors the table of contents points at, and returns the text of each piece with
+     * the anchor that starts it. The text before the first anchor comes first with a null anchor, because it
+     * belongs to whatever was being read before.
+     */
+    fun split(html: String, anchors: List<String>): List<Pair<String?, String>> {
+        if (anchors.isEmpty()) return listOf(null to text(html))
+        val cuts = anchors.mapNotNull { anchor ->
+            val at = Regex("""<[^>]*\s(?:id|name)\s*=\s*["']${Regex.escape(anchor)}["']""",
+                RegexOption.IGNORE_CASE).find(html)?.range?.first
+            at?.let { anchor to it }
+        }.sortedBy { it.second }
+        if (cuts.isEmpty()) return listOf(null to text(html))
+        val pieces = mutableListOf<Pair<String?, String>>()
+        val lead = html.substring(0, cuts.first().second)
+        if (text(lead).isNotBlank()) pieces += null to text(lead)
+        cuts.forEachIndexed { index, (anchor, start) ->
+            val end = cuts.getOrNull(index + 1)?.second ?: html.length
+            pieces += anchor to text(html.substring(start, end))
+        }
+        return pieces
     }
 
     /** Resolves an href against the directory it was written in, including any number of leading `../`. */

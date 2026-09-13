@@ -161,30 +161,42 @@ class DocumentStore(private val context: Context) {
                 require(book.spine.isNotEmpty()) { "Dieses EPUB nennt keine Lesereihenfolge und kann nicht vorgelesen werden." }
                 require(book.spine.size <= MAX_PAGES) { "Dieses EPUB hat ${book.spine.size} Teile. Der Reader schafft bis zu $MAX_PAGES." }
 
-                val titles = book.contentsPath?.let { path -> read(path)?.let { Epub.tableOfContents(it, path) } }.orEmpty()
+                val contents = book.contentsPath?.let { path -> read(path)?.let { Epub.tableOfContents(it, path) } }
+                    .orEmpty()
+                val anchorsByPath = contents.filter { it.fragment != null }.groupBy({ it.path }, { it.fragment!! })
+                val titleFor = contents.associateBy({ it.path + "#" + it.fragment.orEmpty() }, { it.title })
+
+                // A book routinely puts fifty chapters into four files and tells them apart by the anchor alone,
+                // so every document is cut where its own table of contents points into it.
                 var characters = 0
-                val parts = book.spine.mapIndexed { index, path ->
+                val blocks = mutableListOf<Pair<String?, String>>()
+                book.spine.forEachIndexed { index, path ->
                     coroutineContext.ensureActive()
                     progress("Lese Teil ${index + 1} von ${book.spine.size} …")
-                    TextChunks.cleanBlock(Epub.text(read(path).orEmpty())).also {
-                        characters += it.length
+                    Epub.split(read(path).orEmpty(), anchorsByPath[path].orEmpty()).forEach { piece ->
+                        val text = TextChunks.cleanBlock(piece.second)
+                        characters += text.length
                         require(characters <= MAX_CHARACTERS) { "Dieses Buch enthält mehr als ${MAX_CHARACTERS / 1_000_000} Millionen Zeichen." }
+                        blocks += titleFor[path + "#" + piece.first.orEmpty()] to text
                     }
                 }
-                require(parts.any { it.isNotBlank() }) { "In diesem EPUB steht kein Text, den der Reader vorlesen könnte." }
+                require(blocks.any { it.second.isNotBlank() }) { "In diesem EPUB steht kein Text, den der Reader vorlesen könnte." }
 
-                // A stated table of contents is worth more than any grouping; without one, the parts are grouped
-                // the same way pages are.
-                val named = book.spine.withIndex().filter { titles.containsKey(it.value) }
-                val starts = if (named.isNotEmpty()) {
-                    (if (named.first().index > 0) listOf(0) else emptyList()) + named.map { it.index }
-                } else groupPagesIntoSections(parts.map { it.length })
-                val chapters = starts.mapIndexed { index, first ->
-                    val end = starts.getOrNull(index + 1) ?: parts.size
-                    val name = titles[book.spine[first]] ?: if (named.isEmpty()) "Teil ${index + 1}" else "Anfang"
-                    Chapter(name, first + 1, end, TextChunks.joinPages(parts.subList(first, end)))
-                }.filter { it.text.isNotBlank() }
+                // A stated table of contents beats any grouping. Without one, the parts are grouped by length the
+                // way pages are, and a single huge part is cut down to something a listener can move around in.
+                val hasTitles = blocks.any { it.first != null }
+                val starts = if (hasTitles) groupTitledSections(blocks.map { it.first }, blocks.map { it.second.length })
+                    else groupPagesIntoSections(blocks.map { it.second.length })
+                val titled: List<Pair<String, String>> = starts.mapIndexed { index, first ->
+                    val end = starts.getOrNull(index + 1) ?: blocks.size
+                    sectionTitle(blocks[first].first, index) to
+                        TextChunks.joinPages(blocks.subList(first, end).map { it.second })
+                }
+                val chapters = titled.flatMap { splitOversized(it.first, it.second) }
+                    .filter { it.second.isNotBlank() }
+                    .mapIndexed { index, piece -> Chapter(piece.first, index + 1, index + 1, piece.second) }
                 require(chapters.isNotEmpty()) { "In diesem EPUB steht kein Text, den der Reader vorlesen könnte." }
+                val titles = contents
 
                 val notice = listOfNotNull(
                     if (titles.isEmpty()) "Dieses EPUB hat kein Inhaltsverzeichnis. Der Reader hat die Teile zu Abschnitten zusammengefasst."

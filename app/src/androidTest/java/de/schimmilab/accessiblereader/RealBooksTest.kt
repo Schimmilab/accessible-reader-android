@@ -15,7 +15,7 @@ import java.io.File
 
 /**
  * A harness rather than a fixed test: it imports whatever PDFs have been placed in the app's own external
- * folder and reports what the app makes of them. Generated fixtures say nothing about real books, which carry
+ * folder and reports what the app makes of them. Takes PDF and EPUB alike. Generated fixtures say nothing about real books, which carry
  * odd fonts, encodings and column layouts. Skips itself when no PDFs are present.
  *
  * Fill the folder before the run. A debug build reaches its own cache through run-as, and unlike the
@@ -33,20 +33,24 @@ class RealBooksTest {
 
     @Test fun realBooksAreReadableOrHonestlyRefused() = runBlocking {
         val folder = File(context.cacheDir, "books")
-        val pdfs = folder.listFiles { f -> f.isFile && f.name.endsWith(".pdf", ignoreCase = true) }.orEmpty().sortedBy { it.name }
-        assumeTrue("No PDFs in $folder to check", pdfs.isNotEmpty())
+        val pdfs = folder.listFiles { f ->
+            f.isFile && (f.name.endsWith(".pdf", ignoreCase = true) || f.name.endsWith(".epub", ignoreCase = true))
+        }.orEmpty().sortedBy { it.name }
+        assumeTrue("No books in $folder to check", pdfs.isNotEmpty())
 
         val store = DocumentStore(context)
         val failures = mutableListOf<String>()
         for (file in pdfs) {
             val started = System.currentTimeMillis()
-            val result = runCatching { store.importPdf(Uri.fromFile(file)) {} }
+            val result = runCatching { store.import(Uri.fromFile(file)) {} }
             val seconds = (System.currentTimeMillis() - started) / 1000.0
             result.onSuccess { document ->
                 val characters = document.chapters.sumOf { it.text.length }
                 val empty = document.chapters.count { it.text.isBlank() }
                 Log.i("ReaderBooks", "OK       ${file.name}: ${document.chapters.size} Abschnitte, " +
-                    "$characters Zeichen, $empty leer, ${seconds}s, Titel '${document.title}'")
+                    "$characters Zeichen, $empty leer, ${seconds}s, Titel '${document.title}'" +
+                    (if (!document.paged) ", ohne Seiten" else ""))
+                Log.i("ReaderBooks", "   Kapitel: " + document.chapters.take(4).joinToString { "'${it.title}'" })
                 assertTrue("${file.name} imported but holds no text", characters > 0)
                 assertEquals("${file.name} still carries soft hyphens, words would be spoken in halves",
                     0, document.chapters.sumOf { c -> c.text.count { it == '\u00ad' } })

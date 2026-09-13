@@ -45,11 +45,14 @@ class EpubImportTest {
                 <li><a href="text/eins.xhtml">Der Garten</a></li>
                 <li><a href="text/zwei.xhtml">Der Brief</a></li></ol></nav></body></html>""")
             put("OEBPS/cover.xhtml", "<html><body><p>Umschlag</p></body></html>")
+            // Chapters of a real length. Short ones are folded together on purpose, which the other test covers.
+            val filler = "<p>Ein Satz über das Haus, den Garten und den Brief, der lang genug ist. </p>".repeat(200)
             put("OEBPS/text/eins.xhtml", """<html><head><style>p{}</style></head><body>
                 <h1>Der Garten</h1><p>Der Garten war still. Ein Satz mit &auml; und &szlig;.</p>
-                <p>Noch ein Absatz im ersten Kapitel.</p></body></html>""")
+                $filler</body></html>""")
             put("OEBPS/text/zwei.xhtml", """<html><body>
-                <h1>Der Brief</h1><p>Der Brief lag auf dem Tisch und niemand las ihn.</p></body></html>""")
+                <h1>Der Brief</h1><p>Der Brief lag auf dem Tisch und niemand las ihn.</p>
+                $filler</body></html>""")
         }
         return file
     }
@@ -76,13 +79,41 @@ class EpubImportTest {
         } finally { file.delete() }
     }
 
+    /** A book whose stated chapters are a few sentences each is folded into something worth listening to. */
+    @Test fun tinyChaptersAreFoldedTogether() = runBlocking {
+        val file = File.createTempFile("reader-tiny", ".epub", context.cacheDir)
+        ZipOutputStream(file.outputStream()).use { zip ->
+            fun put(path: String, body: String) {
+                zip.putNextEntry(ZipEntry(path)); zip.write(body.toByteArray()); zip.closeEntry()
+            }
+            put("META-INF/container.xml", """<container><rootfiles><rootfile full-path="b.opf"
+                media-type="application/oebps-package+xml"/></rootfiles></container>""")
+            put("b.opf", """<package version="3.0"><metadata><dc:title>Winziges Buch</dc:title></metadata>
+                <manifest><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+                <item id="a" href="a.xhtml" media-type="application/xhtml+xml"/>
+                <item id="b" href="b.xhtml" media-type="application/xhtml+xml"/></manifest>
+                <spine><itemref idref="a"/><itemref idref="b"/></spine></package>""")
+            put("nav.xhtml", """<nav epub:type="toc"><ol><li><a href="a.xhtml">Eins</a></li>
+                <li><a href="b.xhtml">Zwei</a></li></ol></nav>""")
+            put("a.xhtml", "<html><body><p>Ein kurzer erster Teil.</p></body></html>")
+            put("b.xhtml", "<html><body><p>Ein kurzer zweiter Teil.</p></body></html>")
+        }
+        try {
+            val document = DocumentStore(context).import(Uri.fromFile(file)) {}
+            assertEquals("Two sentences do not make two sections", 1, document.chapters.size)
+            assertEquals("Eins", document.chapters[0].title)
+            assertTrue(document.chapters[0].text.contains("zweiter Teil"))
+            DocumentStore(context).remove(document.id)
+        } finally { file.delete() }
+    }
+
     @Test fun anEpubWithoutContentsIsStillReadable() = runBlocking {
         val file = epub(withContents = false)
         try {
             val document = DocumentStore(context).import(Uri.fromFile(file)) {}
             Log.i("ReaderEpub", "ohne Inhaltsverzeichnis: ${document.chapters.size} Abschnitte, " +
                 document.chapters.joinToString { "'${it.title}'" })
-            assertTrue("Short parts are grouped, as pages are", document.chapters.size in 1..2)
+            assertTrue("Parts are grouped, as pages are", document.chapters.size in 1..2)
             assertTrue(document.chapters.first().title.startsWith("Teil"))
             assertTrue(document.chapters.joinToString { it.text }.contains("Der Brief lag auf dem Tisch"))
             assertTrue(document.notice.contains("kein Inhaltsverzeichnis"))
