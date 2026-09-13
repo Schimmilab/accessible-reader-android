@@ -84,15 +84,13 @@ jobs:
           disable-animations: true
           # One class per invocation, and each on a single line: the action does not carry a line
           # continuation across, and Gradle then looks for a task called backslash.
-          # Each run overwrites the results of the one before, so they are put aside after every class.
-          # Otherwise the artifact holds only the last one and says nothing about the other two.
+          # Every line here is run as its own shell, so no loops and no line continuations: each line
+          # has to be a complete command. Each run also overwrites the results of the one before, so
+          # they are put aside right away, otherwise the artifact holds only the last class.
           script: |
-            set -e
-            for CLASS in PdfImportTest EpubImportTest LibraryTest; do
-              ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.$CLASS
-              mkdir -p results/$CLASS
-              cp -r app/build/outputs/androidTest-results/connected/. results/$CLASS/
-            done
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PdfImportTest && mkdir -p results/PdfImportTest && cp -r app/build/outputs/androidTest-results/connected/. results/PdfImportTest/
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.EpubImportTest && mkdir -p results/EpubImportTest && cp -r app/build/outputs/androidTest-results/connected/. results/EpubImportTest/
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.LibraryTest && mkdir -p results/LibraryTest && cp -r app/build/outputs/androidTest-results/connected/. results/LibraryTest/
 
       - name: Keep the reports
         if: always()
