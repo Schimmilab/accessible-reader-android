@@ -19,8 +19,10 @@ class SlowVoiceTest {
 
     @Test fun aNeuralVoiceReachesTheFirstSoundInReasonableTime() {
         compose.activityRule.scenario.onActivity { model = ViewModelProvider(it)[ReaderViewModel::class.java] }
-        compose.waitUntil(25_000) { model.state.value.connected }
-        assumeTrue("Needs the neural engine installed", model.state.value.engines.containsKey(slowEngine))
+        // The engine list arrives with the first voice query, which can lag behind the player connection.
+        compose.waitUntil(60_000) { model.state.value.connected && model.state.value.engines.isNotEmpty() }
+        assumeTrue("Needs the neural engine installed, found ${model.state.value.engines.keys}",
+            model.state.value.engines.containsKey(slowEngine))
 
         compose.runOnIdle { model.engine(slowEngine) }
         compose.waitUntil(40_000) { model.state.value.voices.isNotEmpty() || model.state.value.error != null }
@@ -59,8 +61,10 @@ class SlowVoiceTest {
      */
     @Test fun aSilentSectionSwitchWorksWithTheSameVoice() {
         compose.activityRule.scenario.onActivity { model = ViewModelProvider(it)[ReaderViewModel::class.java] }
-        compose.waitUntil(25_000) { model.state.value.connected }
-        assumeTrue("Needs the neural engine installed", model.state.value.engines.containsKey(slowEngine))
+        // The engine list arrives with the first voice query, which can lag behind the player connection.
+        compose.waitUntil(60_000) { model.state.value.connected && model.state.value.engines.isNotEmpty() }
+        assumeTrue("Needs the neural engine installed, found ${model.state.value.engines.keys}",
+            model.state.value.engines.containsKey(slowEngine))
         compose.runOnIdle { model.engine(slowEngine) }
         compose.waitUntil(40_000) { model.state.value.voices.isNotEmpty() || model.state.value.error != null }
         assumeTrue("The neural engine reports no German voice", model.state.value.voices.isNotEmpty())

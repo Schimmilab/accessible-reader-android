@@ -6,7 +6,9 @@ Date: 13 September 2026
 
 From a listening report: „Ich habe jetzt das Buch, der kleine Hausdoktor, und ich muss irgendwie Seite für Seite reinladen, dass er das dann vorliest." [I have this book now and somehow I have to load it page by page for it to read.]
 
-**A book without bookmarks became one section per page.** That looked tidy and listened badly. Measured on the emulator with a four-page document and nothing pressed: the next page does start on its own, but playback stops completely in between, for 8199, 12077 and 9686 milliseconds. On a four hundred page book that is a ten second silence after every page, which is exactly what a listener would take for the app waiting to be told something.
+> **Correction, added 13 September 2026.** The three figures below are not silences. They are the time from one section change to the next, which contains the audio of the section itself, so this protocol overstated what it had measured. The silence was measured properly for 0.7.2, by watching playback stop and start: 9 seconds with the stock voice and 21 with a local neural one, which is worse than what this protocol claimed, but the number here was not evidence for it. See [TEST-0.7.2.md](TEST-0.7.2.md).
+
+**A book without bookmarks became one section per page.** That looked tidy and listened badly. Measured on the emulator with a four-page document and nothing pressed: the next page does start on its own, but the distance from one section change to the next was 8199, 12077 and 9686 milliseconds.
 
 Pages are now grouped into sections of about ten thousand characters, roughly ten minutes of listening. The silence arrives once per ten minutes instead of once per minute, and the spoken section number stops interrupting every page. A PDF that brings its own bookmarks is untouched.
 
@@ -28,7 +30,7 @@ Pages are now grouped into sections of about ten thousand characters, roughly te
 | Non-fiction, 524 pages, with bookmarks | 60 | 60, unchanged |
 | Generated book, 600 pages | 600 | 4 |
 
-| Silence between sections, four page document | Value |
+| Distance between section changes, four page document, audio included | Value |
 | --- | --- |
 | page 1 to 2 | 8199 ms |
 | page 2 to 3 | 12077 ms |
@@ -59,6 +61,6 @@ Pages are now grouped into sections of about ten thousand characters, roughly te
 
 ## What stays open
 
-- **The silence itself is still there**, now once per section instead of once per page. Removing it means preparing the next section while the current one still plays, which is a real piece of work and has not been started.
+- **The silence itself is still there**, now once per section instead of once per page. Removing it means preparing the next section while the current one still plays. Done in 0.7.2.
 - Eight voices on the target device are announced but not downloaded. Whether fetching them helps is a listening question for the test reader.
 - A section switch with a local neural voice still takes about 26 seconds before the first sound.

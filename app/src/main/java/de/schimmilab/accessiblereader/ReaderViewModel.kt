@@ -67,6 +67,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     val state = mutable.asStateFlow()
     private var player: MediaController? = null
     private var work: Job? = null
+    private var prefetch: Job? = null
     private var preparedKey: String? = null
     private var durations: List<Long> = emptyList()
     private val controllerFuture = MediaController.Builder(application, SessionToken(application, ComponentName(application, ReaderPlaybackService::class.java)))
@@ -256,6 +257,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }
                 }
+                // The section is complete. Put the beginning of the next one into the audio cache while this one
+                // is still being listened to, so the change of section does not fall silent.
+                if (state.value.playbackRequested) prefetchNext(s.document, s.chapter + 1, s.voiceId)
             } catch (e: Exception) {
                 // A timeout arrives as a CancellationException too. Rethrowing it silently was the worst bug this
                 // app had: a slow voice simply stopped, with no sound, no message and nothing to press.
@@ -269,7 +273,40 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /**
+     * Synthesizes the opening of the next section into the audio cache while the current one plays.
+     *
+     * Measured before this existed: playback stopped for 8 to 12 seconds at every section change, because the
+     * next section was only synthesized once the previous one had ended. Nothing here touches playback or the
+     * state; the cache is keyed by provider, engine, voice and text, so the later `play()` simply finds the
+     * pieces already there. In the worst case this is wasted work, never a wrong result.
+     *
+     * Deliberately outside `preparing`: that flag gates automatic continuation, and setting it here would stop
+     * the very thing this exists to smooth.
+     */
+    private fun prefetchNext(document: ReaderDocument, index: Int, voiceId: String) {
+        prefetch?.cancel()
+        val chapter = document.chapters.getOrNull(index) ?: return
+        if (chapter.text.isBlank() || voiceId.isBlank()) return
+        prefetch = viewModelScope.launch {
+            runCatching {
+                val texts = listOf(ChapterAnnouncement.text(index, document.chapters.size, chapter.title)) +
+                    TextChunks.splitForPlayback(chapter.text)
+                var ready = 0L
+                for (text in texts) {
+                    ensureActive()
+                    ready += speech.synthesize(text, voiceId).durationMs
+                    // Enough for playback to start on; the rest is prepared as usual once the section is open.
+                    if (ready >= MIN_LEAD_MS) break
+                }
+            }
+        }
+    }
+
     private fun stopPreparation() {
+        // Cancels the running synthesis only. Whatever the prefetch already wrote stays in the cache and is
+        // exactly what the next section needs.
+        prefetch?.cancel()
         work?.cancel()
         prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, false).apply()
         mutable.update { it.copy(busy = false, preparing = false) }

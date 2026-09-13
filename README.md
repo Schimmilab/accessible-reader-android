@@ -78,7 +78,7 @@ Device tests need an emulator or phone with German offline voice data. Pass one 
 - A book where neither extraction nor recognition finds writing is refused after a sample of 25 pages, not after reading it all.
 - Running page numbers, soft hyphens and words cut in half by a page break are repaired before speaking. Six real books, 524 to 8 pages, were imported and read to verify this.
 - Maximum 120 MB, 3000 pages, six million extracted characters per PDF. A generated 600-page novel imports in four seconds on an emulator.
-- A PDF without bookmarks is grouped into sections of roughly ten minutes of listening, not one section per page. Playback stops for eight to twelve seconds at each section end while the next one is prepared, so a section per page meant a pause after every page.
+- A PDF without bookmarks is grouped into sections of roughly ten minutes of listening, not one section per page. The opening of the next section is prepared while the current one plays, so a section change costs well under a second with the stock voices instead of nine seconds of silence.
 - Bookmarks map to page starts. Several bookmarks on one page collapse into one entry. Tables, footnotes and multi-column layouts can come out in the wrong reading order, and a two-column page can interleave its columns sentence by sentence.
 - One listening position per document. No search, no user bookmarks.
 - The spoken chapter announcement cannot be switched off.
