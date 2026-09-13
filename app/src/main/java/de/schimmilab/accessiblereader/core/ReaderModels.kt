@@ -4,7 +4,12 @@ import java.text.Normalizer
 import java.util.Locale
 
 data class Chapter(val title: String, val firstPage: Int, val lastPage: Int, val text: String)
-data class ReaderDocument(val id: String, val title: String, val chapters: List<Chapter>, val notice: String = "")
+/**
+ * @param paged whether [Chapter.firstPage] means a printed page. A PDF has pages, an EPUB has a reading order,
+ * and telling a listener "Seite 12" for the twelfth file in an archive would be an invention.
+ */
+data class ReaderDocument(val id: String, val title: String, val chapters: List<Chapter>, val notice: String = "",
+                          val paged: Boolean = true)
 data class AudioPosition(val item: Int, val offsetMs: Long)
 
 /**
@@ -57,6 +62,12 @@ object TextChunks {
      * hyphens are repaired, otherwise it glues itself onto the word the page break cut in half.
      */
     fun clean(text: String): String = repairWraps(stripRunningNumbers(collapseWhitespace(text)))
+
+    /**
+     * Cleanup for a source that has no page furniture, such as one document of an EPUB. Dropping a lone number
+     * here would eat a chapter heading that is simply "1".
+     */
+    fun cleanBlock(text: String): String = repairWraps(collapseWhitespace(text))
 
     private fun collapseWhitespace(text: String) = text
         .replace(Regex("[\\t ]+"), " ")

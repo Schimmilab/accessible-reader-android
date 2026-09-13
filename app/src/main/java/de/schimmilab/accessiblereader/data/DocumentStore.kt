@@ -45,7 +45,7 @@ class DocumentStore(private val context: Context) {
         ReaderDocument(id, json.getString("title"), List(array.length()) { i ->
             val c = array.getJSONObject(i)
             Chapter(c.getString("title"), c.getInt("first"), c.getInt("last"), c.getString("text"))
-        }, json.optString("notice"))
+        }, json.optString("notice"), json.optBoolean("paged", true))
     }.getOrNull()
 
     private fun metaFile(id: String) = File(directory, "$id.meta.json")
@@ -89,10 +89,115 @@ class DocumentStore(private val context: Context) {
         val chapters = JSONArray()
         document.chapters.forEach { c -> chapters.put(JSONObject().put("title", c.title)
             .put("first", c.firstPage).put("last", c.lastPage).put("text", c.text)) }
-        val json = JSONObject().put("title", document.title).put("chapters", chapters).put("notice", document.notice)
+        val json = JSONObject().put("title", document.title).put("chapters", chapters)
+            .put("notice", document.notice).put("paged", document.paged)
         val temp = File(directory, "${document.id}.tmp")
         temp.writeText(json.toString())
         check(temp.renameTo(File(directory, "${document.id}.json"))) { "Dokument konnte nicht gespeichert werden." }
+    }
+
+    /**
+     * Reads whatever the listener handed over. An EPUB states its chapters, a PDF has to have them guessed, so
+     * the two take different routes from here.
+     */
+    suspend fun import(uri: Uri, progress: (String) -> Unit): ReaderDocument =
+        if (looksLikeEpub(uri)) importEpub(uri, progress) else importPdf(uri, progress)
+
+    private fun looksLikeEpub(uri: Uri): Boolean {
+        val type = runCatching { context.contentResolver.getType(uri) }.getOrNull().orEmpty()
+        if (type.contains("epub", ignoreCase = true)) return true
+        if (type.contains("pdf", ignoreCase = true)) return false
+        val name = runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            }
+        }.getOrNull() ?: uri.lastPathSegment
+        return name?.endsWith(".epub", ignoreCase = true) == true
+    }
+
+    /** Copies the chosen file to a temp file we can read at will, and returns it with the title and the id. */
+    private fun fetch(uri: Uri, temp: File, suffix: String): Pair<String, String> {
+        val title = context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        }?.removeSuffix(suffix) ?: "Dokument"
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            temp.outputStream().use { output ->
+                val buffer = ByteArray(8192)
+                var total = 0L
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= MAX_BYTES) { "Diese Datei ist größer als ${MAX_BYTES / 1024 / 1024} MB." }
+                    output.write(buffer, 0, count)
+                }
+            }
+        } ?: error("Die Datei konnte nicht geöffnet werden.")
+        val digest = MessageDigest.getInstance("SHA-256")
+        temp.inputStream().use { stream ->
+            val buffer = ByteArray(8192)
+            while (true) { val n = stream.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
+        }
+        return title to digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * An EPUB is a ZIP of XHTML documents with a stated reading order and, almost always, a table of contents.
+     * Everything the PDF route has to work out by hand is simply written down here.
+     */
+    suspend fun importEpub(uri: Uri, progress: (String) -> Unit): ReaderDocument = withContext(Dispatchers.IO) {
+        val temp = File.createTempFile("import-", ".epub", context.cacheDir)
+        try {
+            val (fileTitle, id) = fetch(uri, temp, ".epub")
+            java.util.zip.ZipFile(temp).use { zip ->
+                fun read(path: String): String? = zip.getEntry(path)?.let { entry ->
+                    zip.getInputStream(entry).use { it.readBytes().toString(Charsets.UTF_8) }
+                }
+                val container = read("META-INF/container.xml")
+                    ?: error("Diese EPUB-Datei hat kein Inhaltsverzeichnis der Dateien. Sie ist wahrscheinlich beschädigt.")
+                val packagePath = Epub.packagePath(container)
+                    ?: error("Diese EPUB-Datei nennt keine Buchdatei. Sie ist wahrscheinlich beschädigt.")
+                val book = Epub.readPackage(read(packagePath) ?: error("Die Buchdatei fehlt in diesem EPUB."), packagePath)
+                require(book.spine.isNotEmpty()) { "Dieses EPUB nennt keine Lesereihenfolge und kann nicht vorgelesen werden." }
+                require(book.spine.size <= MAX_PAGES) { "Dieses EPUB hat ${book.spine.size} Teile. Der Reader schafft bis zu $MAX_PAGES." }
+
+                val titles = book.contentsPath?.let { path -> read(path)?.let { Epub.tableOfContents(it, path) } }.orEmpty()
+                var characters = 0
+                val parts = book.spine.mapIndexed { index, path ->
+                    coroutineContext.ensureActive()
+                    progress("Lese Teil ${index + 1} von ${book.spine.size} …")
+                    TextChunks.cleanBlock(Epub.text(read(path).orEmpty())).also {
+                        characters += it.length
+                        require(characters <= MAX_CHARACTERS) { "Dieses Buch enthält mehr als ${MAX_CHARACTERS / 1_000_000} Millionen Zeichen." }
+                    }
+                }
+                require(parts.any { it.isNotBlank() }) { "In diesem EPUB steht kein Text, den der Reader vorlesen könnte." }
+
+                // A stated table of contents is worth more than any grouping; without one, the parts are grouped
+                // the same way pages are.
+                val named = book.spine.withIndex().filter { titles.containsKey(it.value) }
+                val starts = if (named.isNotEmpty()) {
+                    (if (named.first().index > 0) listOf(0) else emptyList()) + named.map { it.index }
+                } else groupPagesIntoSections(parts.map { it.length })
+                val chapters = starts.mapIndexed { index, first ->
+                    val end = starts.getOrNull(index + 1) ?: parts.size
+                    val name = titles[book.spine[first]] ?: if (named.isEmpty()) "Teil ${index + 1}" else "Anfang"
+                    Chapter(name, first + 1, end, TextChunks.joinPages(parts.subList(first, end)))
+                }.filter { it.text.isNotBlank() }
+                require(chapters.isNotEmpty()) { "In diesem EPUB steht kein Text, den der Reader vorlesen könnte." }
+
+                val notice = listOfNotNull(
+                    if (titles.isEmpty()) "Dieses EPUB hat kein Inhaltsverzeichnis. Der Reader hat die Teile zu Abschnitten zusammengefasst."
+                    else "Inhaltsverzeichnis des Buches übernommen.",
+                    "EPUB-Bücher haben keine Seitenzahlen, deshalb nennt der Reader nur Abschnitte."
+                ).joinToString(" ")
+                ReaderDocument(id, book.title?.takeIf { it.isNotBlank() } ?: fileTitle, chapters, notice, paged = false)
+                    .also {
+                        save(it)
+                        saveMeta(LibraryEntry(it.id, it.title, it.chapters.size, System.currentTimeMillis()))
+                    }
+            }
+        } finally { temp.delete() }
     }
 
     suspend fun importPdf(uri: Uri, progress: (String) -> Unit): ReaderDocument = withContext(Dispatchers.IO) {

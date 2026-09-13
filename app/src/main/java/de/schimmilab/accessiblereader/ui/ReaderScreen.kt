@@ -77,7 +77,11 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                         HorizontalDivider()
                         Text("ABSCHNITT ${s.chapter + 1} VON ${s.document.chapters.size}", style = MaterialTheme.typography.labelSmall, letterSpacing = 1.sp)
                         Text(chapter.title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.semantics { heading() })
-                        Text(if (chapter.firstPage == chapter.lastPage) "Seite ${chapter.firstPage}" else "Seiten ${chapter.firstPage} bis ${chapter.lastPage}", style = MaterialTheme.typography.bodyMedium)
+                        if (s.document.paged) {
+                            Text(if (chapter.firstPage == chapter.lastPage) "Seite ${chapter.firstPage}"
+                                else "Seiten ${chapter.firstPage} bis ${chapter.lastPage}",
+                                style = MaterialTheme.typography.bodyMedium)
+                        }
                         LinearProgressIndicator(progress = { if (s.durationMs > 0) (s.positionMs.toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f },
                             modifier = Modifier.fillMaxWidth().height(6.dp).clearAndSetSemantics { })
                         Text(positionLabel(time(s.positionMs), time(s.durationMs), s.durationMs, s.preparing),
@@ -158,7 +162,10 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                     Row(Modifier.fillMaxWidth().heightIn(min = 64.dp)
                         .selectable(selected = index == s.chapter, enabled = !s.busy && !s.listening, role = Role.RadioButton, onClick = { model.chapter(index) }).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(selected = index == s.chapter, onClick = null)
-                        Column(Modifier.padding(start = 8.dp)) { Text("${index + 1}. ${c.title}"); Text("Ab Seite ${c.firstPage}", style = MaterialTheme.typography.bodySmall) }
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text("${index + 1}. ${c.title}")
+                            if (s.document.paged) Text("Ab Seite ${c.firstPage}", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }

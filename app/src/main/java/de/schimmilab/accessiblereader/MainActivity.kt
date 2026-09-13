@@ -22,7 +22,7 @@ import de.schimmilab.accessiblereader.ui.ReaderScreen
 class MainActivity : ComponentActivity() {
     private val model: ReaderViewModel by viewModels()
     private var recognizer: SpeechRecognizer? = null
-    private val filePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::importPdf) }
+    private val filePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::importDocument) }
     private val microphone = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) listen() else model.showError("Ohne Mikrofonfreigabe kannst du alle Funktionen über die beschrifteten Tasten bedienen.")
     }
@@ -34,7 +34,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ReaderScreen(model.state.collectAsStateWithLifecycle().value, model,
-                onOpen = { filePicker.launch(arrayOf("application/pdf")) }, onPlay = ::play,
+                onOpen = { filePicker.launch(arrayOf("application/pdf", "application/epub+zip")) }, onPlay = ::play,
                 onListen = ::requestSpeech, onVoiceSettings = {
                     runCatching { voiceSettings.launch(Intent("com.android.settings.TTS_SETTINGS")) }
                         .onFailure { voiceSettings.launch(Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)) }
@@ -51,7 +51,7 @@ class MainActivity : ComponentActivity() {
                 else intent.getParcelableExtra(Intent.EXTRA_STREAM)
             else -> null
         }
-        uri?.let(model::importPdf)
+        uri?.let(model::importDocument)
     }
     /** The report describes the device's speech engine only. It contains nothing from the user's documents. */
     private fun shareReport(text: String) {

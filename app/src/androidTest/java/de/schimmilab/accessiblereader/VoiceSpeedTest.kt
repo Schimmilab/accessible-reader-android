@@ -17,6 +17,7 @@ class VoiceSpeedTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private lateinit var model: ReaderViewModel
     private val slowEngine = "com.CodeBySonu.VoxSherpa"
+    private val stockEngine = "com.google.android.tts"
 
     @Test fun aSlowVoiceIsNamedAfterItHasBeenMeasured() {
         compose.activityRule.scenario.onActivity { model = ViewModelProvider(it)[ReaderViewModel::class.java] }
@@ -35,13 +36,18 @@ class VoiceSpeedTest {
         val note = model.state.value.voiceSpeed
         Log.i("ReaderSpeedNote", "Hinweis zur Stimme ${slow.id}: $note")
         assertNotNull("A voice this slow has to be named", note)
-        assertTrue("The note has to be about the listening time: $note",
-            note!!.contains("Hörzeit") || note.contains("Zuhören"))
+        assertTrue("The note has to say how fast it speaks: $note", note!!.contains("Wörter je Minute"))
+        assertTrue("And that it cannot keep ahead of listening: $note",
+            note.contains("Hörzeit") || note.contains("Zuhören"))
     }
 
-    @Test fun aFastVoiceIsNotCommentedOn() {
+    @Test fun aFastVoiceIsDescribedButNotWarnedAbout() {
         compose.activityRule.scenario.onActivity { model = ViewModelProvider(it)[ReaderViewModel::class.java] }
-        compose.waitUntil(60_000) { model.state.value.connected && model.state.value.voices.isNotEmpty() }
+        compose.waitUntil(60_000) { model.state.value.connected && model.state.value.engines.isNotEmpty() }
+        // The other test switches the engine and that choice is remembered, so say which one this needs.
+        assumeTrue("Needs the stock engine", model.state.value.engines.containsKey(stockEngine))
+        compose.runOnIdle { model.engine(stockEngine) }
+        compose.waitUntil(40_000) { model.state.value.voices.isNotEmpty() || model.state.value.error != null }
         assumeTrue(model.state.value.voices.isNotEmpty())
         val fast = model.state.value.voices.first { !it.needsNetwork }
         compose.runOnIdle { model.clearCache(); model.voice(fast.id); model.demo(); model.chapter(0); model.play() }
@@ -49,7 +55,10 @@ class VoiceSpeedTest {
         assertNull(model.state.value.error)
         compose.waitUntil(60_000) { !model.state.value.preparing }
         compose.runOnIdle { model.pause() }
-        Log.i("ReaderSpeedNote", "Schnelle Stimme ${fast.id}: ${model.state.value.voiceSpeed}")
-        assertNull("A voice that is far ahead of listening needs no comment", model.state.value.voiceSpeed)
+        val note = model.state.value.voiceSpeed
+        Log.i("ReaderSpeedNote", "Schnelle Stimme ${fast.id}: $note")
+        assertNotNull("Every measured voice says how fast it speaks", note)
+        assertTrue("A voice that is far ahead of listening gets no warning: $note",
+            note!!.contains("Wörter je Minute") && !note.contains("Zuhören") && !note.contains("Hörzeit"))
     }
 }

@@ -95,21 +95,36 @@ fun voiceLabel(index: Int, country: String, needsNetwork: Boolean): String {
 }
 
 /**
- * What to tell a listener about the speed of a voice, once the app has measured it. [ratio] is the time the
- * engine needed divided by the length of the audio it produced, so 0.03 means thirty times faster than
- * listening and 1.0 means exactly as slow.
+ * Roughly how fast a voice speaks. A German word runs to about six and a half characters with its space, which
+ * is close enough for a number meant to help someone choose between two voices.
  *
- * This matters because it decides whether a book plays through or keeps stopping to catch up, and it is
- * invisible from the outside: a local neural voice sounds better and takes thirty times longer to produce.
- * Returns null for a voice that is comfortably ahead, where there is nothing worth saying.
+ * This is the unit the listener herself used: she asked for a voice to be taken down to eighty words a minute.
  */
-fun voiceSpeedNote(ratio: Double): String? = when {
-    ratio < 0.5 -> null
-    ratio < 0.9 -> "Diese Stimme braucht zum Erzeugen etwa die halbe Hörzeit. Der Anfang kommt etwas später."
-    else -> "Diese Stimme braucht zum Erzeugen ungefähr so lange, wie das Zuhören dauert. " +
-        "Der Anfang kommt später, und bei langen Abschnitten kann es kurze Pausen geben. " +
-        "Eine andere Stimme liest flüssiger."
+fun wordsPerMinute(characters: Int, audioMs: Long): Int {
+    if (characters <= 0 || audioMs <= 0) return 0
+    return Math.round(characters / 6.5 / (audioMs / 60_000.0)).toInt()
 }
+
+/**
+ * What to tell a listener about a voice, once the app has measured it while reading.
+ *
+ * Two things matter and neither can be heard from a short sample. How fast it speaks: measured on one emulator,
+ * a local neural voice read at about 205 words a minute where the stock voice read at 132, which is why a
+ * listener had to take that voice down to follow it. And whether it can keep ahead of playback, [ratio] being
+ * the time the engine needs divided by the length of the audio it produces, so 0.03 is thirty times faster than
+ * listening and 1.0 is exactly as slow. That second one decides whether a book runs through or keeps stopping.
+ */
+fun voiceSpeedNote(ratio: Double, wordsPerMinute: Int): String {
+    val rate = if (wordsPerMinute > 0) "Diese Stimme spricht etwa $wordsPerMinute Wörter je Minute." else null
+    val keepsUp = when {
+        ratio < 0.5 -> null
+        ratio < 0.9 -> "Zum Erzeugen braucht sie etwa die halbe Hörzeit, der Anfang kommt also etwas später."
+        else -> "Zum Erzeugen braucht sie ungefähr so lange, wie das Zuhören dauert. Der Anfang kommt später, " +
+            "und bei langen Abschnitten kann es kurze Pausen geben. Eine andere Stimme liest flüssiger."
+    }
+    return listOfNotNull(rate, keepsUp).joinToString(" ")
+}
+
 
 /**
  * How much one press changes the reading speed. A quarter was too coarse to be usable: from normal speed the

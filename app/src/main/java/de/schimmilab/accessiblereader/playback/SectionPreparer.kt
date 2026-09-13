@@ -23,8 +23,11 @@ interface SectionProgress {
     fun onStarted(key: String, pending: Int) {}
     /** A further part was appended while the listener was already hearing the section. */
     fun onAppended() {}
-    /** One piece of text was turned into audio. [fromCache] means it cost no time and says nothing about speed. */
-    fun onSynthesized(workMs: Long, audioMs: Long, fromCache: Boolean) {}
+    /**
+     * One piece of text was turned into audio. [fromCache] means it cost no time and says nothing about how fast
+     * the engine works; [characters] is what the voice actually spoke, which gives its speaking rate.
+     */
+    fun onSynthesized(workMs: Long, audioMs: Long, characters: Int, fromCache: Boolean) {}
 }
 
 /**
@@ -82,7 +85,7 @@ class SectionPreparer(
             val began = System.currentTimeMillis()
             val part = speech.synthesize(text, voiceId)
             coroutineContext.ensureActive()
-            listener.onSynthesized(System.currentTimeMillis() - began, part.durationMs, part.fromCache)
+            listener.onSynthesized(System.currentTimeMillis() - began, part.durationMs, text.length, part.fromCache)
             val extra = Bundle().apply {
                 putString("document", document.id); putInt("chapter", chapterIndex); putString("voice", voiceId)
                 putLong("duration", part.durationMs)

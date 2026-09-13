@@ -118,15 +118,22 @@ class ReaderCoreTest {
         assertTrue(speedAnnouncement(SPEED_MIN).contains("langsamste Stufe"))
         assertTrue(speedAnnouncement(SPEED_MAX).contains("schnellste Stufe"))
     }
-    @Test fun aVoiceThatCannotKeepUpSaysSo() {
-        // Measured on an emulator: the stock Google voice needs about 0.04 of the listening time, the local
-        // neural one between 0.6 and 1.2. The second kind decides whether a book plays through.
-        assertNull("A voice far ahead of listening needs no comment", voiceSpeedNote(0.04))
-        assertNull(voiceSpeedNote(0.49))
-        assertTrue(voiceSpeedNote(0.65)!!.contains("halbe Hörzeit"))
-        val slow = voiceSpeedNote(1.05)!!
+    @Test fun aVoiceIsDescribedByHowFastItSpeaksAndWhetherItKeepsUp() {
+        // Measured on an emulator: the stock Google voice reads at about 132 words a minute and needs 0.04 of
+        // the listening time, the local neural one reads at about 205 and needs roughly all of it. The first
+        // number is why a listener had to slow that voice down, the second decides whether a book runs through.
+        assertEquals(132, wordsPerMinute(600, 41_806))
+        assertEquals(204, wordsPerMinute(600, 27_196))
+        assertEquals(0, wordsPerMinute(0, 1000))
+        assertEquals(0, wordsPerMinute(600, 0))
+
+        val fast = voiceSpeedNote(0.04, 132)
+        assertEquals("Diese Stimme spricht etwa 132 Wörter je Minute.", fast)
+        val slow = voiceSpeedNote(1.05, 204)
+        assertTrue(slow.contains("204 Wörter je Minute"))
         assertTrue(slow.contains("so lange, wie das Zuhören dauert"))
         assertTrue("It has to name the way out", slow.contains("andere Stimme"))
+        assertTrue(voiceSpeedNote(0.65, 150).contains("halbe Hörzeit"))
     }
     @Test fun theVoiceListSaysWhichEngineItBelongsTo() {
         assertEquals("Stimmen von Google: 5", voicesHeading("Google", 5))

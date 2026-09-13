@@ -28,11 +28,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:mimeType="application/pdf" android:scheme="content" />
+                <data android:mimeType="application/epub+zip" android:scheme="content" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/epub+zip" />
             </intent-filter>
         </activity>
         <service android:name=".playback.ReaderPlaybackService" android:exported="false"

@@ -67,7 +67,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private val store = DocumentStore(application)
     // Replaced when the user picks another speech engine, so it cannot be a val.
     private var speech = AndroidSpeechProvider(application, application.getSharedPreferences("reader", Application.MODE_PRIVATE).getString("engine", "").orEmpty())
-    private val mutable = MutableStateFlow(ReaderState(speed = prefs.getFloat("speed", 1f)))
+    private val mutable = MutableStateFlow(ReaderState(speed = storedSpeed(prefs.getString("voice", "").orEmpty())))
     val state = mutable.asStateFlow()
     private var player: MediaController? = null
     private var work: Job? = null
@@ -147,6 +147,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 voiceId = voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id ?: voices.firstOrNull()?.id.orEmpty(),
                 voiceSpeed = measuredSpeed(voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id
                     ?: voices.firstOrNull()?.id.orEmpty()),
+                speed = storedSpeed(voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id
+                    ?: voices.firstOrNull()?.id.orEmpty()),
                 status = if (voices.isEmpty())
                     "Diese Sprachausgabe meldet keine deutsche Stimme. Bitte in Stimme und Einstellungen eine andere Sprachausgabe wählen."
                 else current.status) }
@@ -166,14 +168,14 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         refreshVoices()
     }
 
-    fun importPdf(uri: Uri) {
+    fun importDocument(uri: Uri) {
         if (state.value.busy) return
         player?.pause()
         work?.cancel()
         work = viewModelScope.launch {
-            mutable.update { it.copy(busy = true, preparing = false, error = null, status = "Öffne PDF …") }
+            mutable.update { it.copy(busy = true, preparing = false, error = null, status = "Öffne Datei …") }
             try {
-                val document = store.importPdf(uri) { message -> mutable.update { it.copy(status = message) } }
+                val document = store.import(uri) { message -> mutable.update { it.copy(status = message) } }
                 open(document)
                 refreshLibrary()
             } catch (e: Exception) {
@@ -230,9 +232,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                         override fun onPreparing(index: Int, total: Int) {
                             if (!quiet) mutable.update { it.copy(status = "Bereite Audio vor: Teil ${index + 1} von $total.") }
                         }
-                        override fun onSynthesized(workMs: Long, audioMs: Long, fromCache: Boolean) {
+                        override fun onSynthesized(workMs: Long, audioMs: Long, characters: Int, fromCache: Boolean) {
                             // Only real work counts. A cache hit costs nothing and would make every voice look instant.
-                            if (!fromCache && audioMs > 0) recordVoiceSpeed(s.voiceId, workMs, audioMs)
+                            if (!fromCache && audioMs > 0) recordVoiceSpeed(s.voiceId, workMs, audioMs, characters)
                         }
                         override fun onStarted(key: String, pending: Int) {
                             preparedKey = key; started = true
@@ -320,11 +322,26 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         val end = if (state.value.preparing) "das bereits vorbereitete Audio" else "das Kapitelende"
         mutable.update { it.copy(status = if (seconds < 0) "${-seconds} Sekunden zurück, begrenzt auf den Kapitelanfang." else "$seconds Sekunden vor, begrenzt auf $end.") }
     }
+    /**
+     * The speed remembered for one voice. Voices differ in how fast they speak at their own natural rate, by a
+     * lot: a listener had to take one neural voice down to keep up with it while the stock voices were fine at
+     * normal. One number for all of them means changing the voice silently changes the speed.
+     */
+    private fun storedSpeed(voiceId: String): Float {
+        if (voiceId.isBlank()) return prefs.getFloat("speed", 1f)
+        // Falls back to whatever was set before voices had their own, so nobody's setting is lost.
+        return prefs.getFloat("speed.rate.$voiceId", prefs.getFloat("speed", 1f))
+    }
+
     fun speed(value: Float) {
         // Rounded to the step, so repeated presses cannot drift into 1.2000001 and make a screen reader read that.
         val speed = (Math.round(value / SPEED_STEP) * SPEED_STEP).coerceIn(SPEED_MIN, SPEED_MAX)
         player?.setPlaybackSpeed(speed)
-        prefs.edit().putFloat("speed", speed).apply()
+        val voiceId = state.value.voiceId
+        // Written per voice only. The old single value stays where it is and serves as the starting point for a
+        // voice that has never been adjusted; writing it here would let one voice drag all the others along.
+        if (voiceId.isNotBlank()) prefs.edit().putFloat("speed.rate.$voiceId", speed).apply()
+        else prefs.edit().putFloat("speed", speed).apply()
         // Said out loud on purpose: the screen reader keeps its focus on the button that was pressed and would
         // never read the value that changed because of it.
         mutable.update { it.copy(speed = speed, status = speedAnnouncement(speed)) }
@@ -336,8 +353,11 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         stopPreparation()
         pause(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
         prefs.edit().putString("voice", id).apply()
-        mutable.update { it.copy(voiceId = id, durationMs = 0, positionMs = 0, voiceSpeed = measuredSpeed(id),
-            status = "Stimme gewechselt. Dieses Kapitel beginnt beim nächsten Start von vorne.") }
+        // Every voice keeps its own speed, because they do not speak at the same rate at all.
+        val speed = storedSpeed(id)
+        player?.setPlaybackSpeed(speed)
+        mutable.update { it.copy(voiceId = id, speed = speed, durationMs = 0, positionMs = 0, voiceSpeed = measuredSpeed(id),
+            status = "Stimme gewechselt, ${speedLabel(speed)} fach. Dieses Kapitel beginnt beim nächsten Start von vorne.") }
     }
     fun library(open: Boolean) {
         mutable.update { it.copy(showLibrary = open) }
@@ -416,13 +436,14 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
      *
      * Averaged over everything measured so far for that voice, so one slow first piece does not label it.
      */
-    private fun recordVoiceSpeed(voiceId: String, synthesisMs: Long, audioMs: Long) {
+    private fun recordVoiceSpeed(voiceId: String, synthesisMs: Long, audioMs: Long, characters: Int) {
         val key = "speed.${voiceId}"
-        val previousWork = prefs.getLong("$key.work", 0) + synthesisMs
-        val previousAudio = prefs.getLong("$key.audio", 0) + audioMs
-        prefs.edit().putLong("$key.work", previousWork).putLong("$key.audio", previousAudio).apply()
-        if (previousAudio <= 0) return
-        val note = voiceSpeedNote(previousWork.toDouble() / previousAudio)
+        val work = prefs.getLong("$key.work", 0) + synthesisMs
+        val audio = prefs.getLong("$key.audio", 0) + audioMs
+        val letters = prefs.getLong("$key.chars", 0) + characters
+        prefs.edit().putLong("$key.work", work).putLong("$key.audio", audio).putLong("$key.chars", letters).apply()
+        if (audio <= 0) return
+        val note = voiceSpeedNote(work.toDouble() / audio, wordsPerMinute(letters.toInt(), audio))
         if (note != state.value.voiceSpeed) mutable.update { it.copy(voiceSpeed = note) }
     }
 
@@ -430,7 +451,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     private fun measuredSpeed(voiceId: String): String? {
         val audio = prefs.getLong("speed.$voiceId.audio", 0)
         if (audio <= 0) return null
-        return voiceSpeedNote(prefs.getLong("speed.$voiceId.work", 0).toDouble() / audio)
+        return voiceSpeedNote(prefs.getLong("speed.$voiceId.work", 0).toDouble() / audio,
+            wordsPerMinute(prefs.getLong("speed.$voiceId.chars", 0).toInt(), audio))
     }
 
     fun onlineVoices(policy: OnlineVoicePolicy) {
