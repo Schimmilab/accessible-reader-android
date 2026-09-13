@@ -84,15 +84,20 @@ jobs:
           disable-animations: true
           # One class per invocation, and each on a single line: the action does not carry a line
           # continuation across, and Gradle then looks for a task called backslash.
+          # Each run overwrites the results of the one before, so they are put aside after every class.
+          # Otherwise the artifact holds only the last one and says nothing about the other two.
           script: |
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PdfImportTest
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.EpubImportTest
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.LibraryTest
+            set -e
+            for CLASS in PdfImportTest EpubImportTest LibraryTest; do
+              ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.$CLASS
+              mkdir -p results/$CLASS
+              cp -r app/build/outputs/androidTest-results/connected/. results/$CLASS/
+            done
 
       - name: Keep the reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: import-reports
-          path: app/build/outputs/androidTest-results/
+          path: results/
           retention-days: 14
