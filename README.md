@@ -90,6 +90,7 @@ Device tests need an emulator or phone with German offline voice data. Pass one 
 
 - Blind users test from the beginning, not at the end.
 - The free core function must not depend on a cloud provider.
+- Better voices are welcome as long as they cost no money, no API key and no permission this app has to hold.
 - More natural cloud voices stay optional and get a hard spending cap.
 - PDFs and generated audio stay on the device wherever possible.
 - Every important function is reachable by TalkBack, by voice and by media keys.

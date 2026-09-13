@@ -58,3 +58,38 @@ fun positionAnnouncement(position: String, duration: String, durationMs: Long, p
         preparing -> "Bisher $duration vorbereitet, weitere Teile folgen"
         else -> "Kapitel enthält $duration"
     } + "."
+
+/** What the app knows about the connection. Nothing here reaches the network; it only reads its state. */
+enum class NetworkKind { NONE, METERED, UNMETERED }
+
+/** What the listener allows for voices that fetch their audio from the internet. */
+enum class OnlineVoicePolicy { NEVER, WIFI_ONLY, ALWAYS }
+
+/**
+ * Whether a voice that needs the internet may be used right now. The app itself never goes online: the speech
+ * engine fetches the audio in its own process, which is why this needs no internet permission. What it must not
+ * do is spend someone's mobile data without being told to.
+ */
+fun mayUseOnlineVoice(policy: OnlineVoicePolicy, network: NetworkKind): Boolean = when (policy) {
+    OnlineVoicePolicy.NEVER -> false
+    OnlineVoicePolicy.WIFI_ONLY -> network == NetworkKind.UNMETERED
+    OnlineVoicePolicy.ALWAYS -> network != NetworkKind.NONE
+}
+
+/** Why an online voice cannot be used right now, in words a listener can act on. */
+fun onlineVoiceRefusal(policy: OnlineVoicePolicy, network: NetworkKind): String = when {
+    network == NetworkKind.NONE ->
+        "Diese Stimme holt ihre Sprache aus dem Internet, und das Gerät ist gerade nicht verbunden. " +
+            "Bitte eine Stimme wählen, die offline arbeitet."
+    policy == OnlineVoicePolicy.NEVER ->
+        "Diese Stimme holt ihre Sprache aus dem Internet. In den Einstellungen sind Online-Stimmen ausgeschaltet."
+    else ->
+        "Diese Stimme holt ihre Sprache aus dem Internet, und das Gerät ist im Mobilfunknetz. " +
+            "In den Einstellungen kannst du Online-Stimmen auch für mobile Daten erlauben."
+}
+
+/** How the voice list describes a voice, so nobody picks an online voice without knowing it is one. */
+fun voiceLabel(index: Int, country: String, needsNetwork: Boolean): String {
+    val place = country.ifBlank { "lokal" }
+    return if (needsNetwork) "Deutsch ${index + 1} · $place · braucht Internet" else "Deutsch ${index + 1} · $place"
+}

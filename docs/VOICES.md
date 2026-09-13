@@ -148,3 +148,28 @@ interface SpeechProvider {
 `synthesize` returns a playable file and its duration. Everything above it, chunking, the minimum lead, appending during playback, the cache and the chapter timeline, is provider-agnostic. A cloud implementation has to enforce consent and a budget before it synthesizes anything.
 
 Cached audio is keyed by provider, engine, voice and text, so audio from two engines can never be confused.
+
+## Online voices, and what they cost
+
+Researched on 13 September 2026. Prices are per 800,000 characters, which is roughly one 500-page book.
+
+| Option | Per book | Key needed | Where the text goes |
+| --- | --- | --- | --- |
+| **Network voices of the installed engine** | nothing | none | to the engine vendor, no published terms found |
+| Google Chirp 3 HD | about 24 dollars, first million characters per month free | Google Cloud project with billing | United States, no EU endpoint for Chirp |
+| Google Neural2 | about 13 dollars | same | EU endpoint available |
+| Azure Neural | about 12 dollars | Azure subscription | EU region, documented as not retained and not used for training |
+| Amazon Polly Generative | about 24 dollars | AWS account | content may be used for service improvement unless an organisation policy opts out |
+| ElevenLabs | about 80 dollars | yes | training on submitted content is on by default below the enterprise tier |
+
+Prices change; check them before relying on any of these. The figures above come from each vendor's own pricing page on that date.
+
+**What this project uses: the first row, and nothing else.** The reasoning is in [decision 0005](decisions/0005-online-voices-of-the-speech-engine.md). The short version is that every cloud option needs a sighted person to create an account and a key, which makes it unusable for the person it is meant to help, and puts one private individual in the position of paying for and being legally responsible for someone else's reading.
+
+If you are building your own version and want a cloud voice, write it as another `SpeechProvider`. The interface is described above. Three things it must do that the local one does not: keep a hard spending limit, ask before the first byte of a book leaves the device, and fail back to a local voice rather than stopping mid-chapter.
+
+### Using the engine's own network voices
+
+Nothing to install. If the speech engine offers German voices that need the internet, they appear in the voice list marked „braucht Internet" [needs internet]. The app itself has no internet permission and never connects; the engine fetches the audio in its own process.
+
+Under "Stimmen aus dem Internet" in the settings, three choices decide when they may be used: only on Wi-Fi, which is the default, also on mobile data, or never. Pick a voice that needs the internet while the connection does not allow it and the app says so before it prepares anything, naming what to change.

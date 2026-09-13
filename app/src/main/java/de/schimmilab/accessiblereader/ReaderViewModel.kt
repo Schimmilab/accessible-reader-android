@@ -2,6 +2,8 @@ package de.schimmilab.accessiblereader
 
 import android.app.Application
 import android.content.ComponentName
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -43,6 +45,7 @@ data class ReaderState(
     val showContents: Boolean = false, val showSettings: Boolean = false,
     val cacheBytes: Long = 0, val listening: Boolean = false,
     val report: String = "",
+    val onlineVoices: OnlineVoicePolicy = OnlineVoicePolicy.WIFI_ONLY,
     // Separate from busy: a running diagnosis must not lock the screen someone is waiting in front of.
     val diagnosing: Boolean = false,
     val library: List<LibraryItem> = emptyList(), val showLibrary: Boolean = false, val pendingRemoval: String? = null,
@@ -131,7 +134,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             val voices = speech.voices()
             val engines = speech.engines()
             val chosen = prefs.getString("engine", "").orEmpty().ifBlank { speech.defaultEngineName() }
-            mutable.update { current -> current.copy(voices = voices, engines = engines, engineId = chosen,
+            val policy = runCatching { OnlineVoicePolicy.valueOf(prefs.getString("onlineVoices", "") ?: "") }
+                .getOrDefault(OnlineVoicePolicy.WIFI_ONLY)
+            mutable.update { current -> current.copy(voices = voices, engines = engines, engineId = chosen, onlineVoices = policy,
                 voiceId = voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id ?: voices.firstOrNull()?.id.orEmpty(),
                 status = if (voices.isEmpty())
                     "Diese Sprachausgabe meldet keine deutsche Stimme. Bitte in Stimme und Einstellungen eine andere Sprachausgabe wählen."
@@ -191,6 +196,12 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         if (s.voiceId.isBlank()) { settings(true); return showError("Bitte eine deutsche Offline-Stimme installieren und anschließend Stimmen neu laden.") }
         val chapter = s.document.chapters[s.chapter]
         if (chapter.text.isBlank()) return showError("Dieser Abschnitt enthält keinen lesbaren Text. Bitte einen anderen Abschnitt wählen.")
+        // Checked before anything is prepared, so a voice that cannot work right now says so instead of failing
+        // halfway through a chapter.
+        if (s.voices.firstOrNull { it.id == s.voiceId }?.needsNetwork == true) {
+            val network = networkKind()
+            if (!mayUseOnlineVoice(s.onlineVoices, network)) return showError(onlineVoiceRefusal(s.onlineVoices, network))
+        }
         val key = "${s.document.id}:${s.chapter}:${s.voiceId}"
         if (preparedKey == key && p.mediaItemCount > 0) {
             if (p.playbackState == Player.STATE_ENDED) p.seekTo(0, 0)
@@ -355,6 +366,29 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
      * right after starting and the downloaded ones a moment later, and a listener comparing the diagnosis with
      * this list would otherwise see two different numbers with no way to reconcile them.
      */
+    /**
+     * What kind of connection the device is on. Reading this needs ACCESS_NETWORK_STATE, which grants no network
+     * access of its own; the app still cannot reach the internet, and the voices that can are served by the
+     * speech engine in its own process.
+     */
+    private fun networkKind(): NetworkKind {
+        val manager = getApplication<Application>().getSystemService(ConnectivityManager::class.java)
+        val caps = runCatching { manager?.getNetworkCapabilities(manager.activeNetwork) }.getOrNull()
+            ?: return NetworkKind.NONE
+        if (!caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) return NetworkKind.NONE
+        return if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)) NetworkKind.UNMETERED
+        else NetworkKind.METERED
+    }
+
+    fun onlineVoices(policy: OnlineVoicePolicy) {
+        prefs.edit().putString("onlineVoices", policy.name).apply()
+        mutable.update { it.copy(onlineVoices = policy, status = when (policy) {
+            OnlineVoicePolicy.NEVER -> "Online-Stimmen sind aus. Es werden nur Stimmen verwendet, die offline arbeiten."
+            OnlineVoicePolicy.WIFI_ONLY -> "Online-Stimmen nur im WLAN."
+            OnlineVoicePolicy.ALWAYS -> "Online-Stimmen auch über mobile Daten. Das verbraucht dein Datenvolumen."
+        }) }
+    }
+
     fun settings(open: Boolean) {
         mutable.update { it.copy(showSettings = open, cacheBytes = speech.cacheSize()) }
         if (open) refreshVoices()

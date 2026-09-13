@@ -6,10 +6,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- The text recognition library asks for these. The reader has no use for a network and must not gain one
-         silently, and its recognition model sits inside the APK. -->
+    <!-- The text recognition library asks for INTERNET. The reader has no use for a network of its own and must
+         not gain one silently, and its recognition model sits inside the APK. -->
     <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <!-- Only reads the state of the connection, never uses it: tells Wi-Fi from mobile data so a voice that the
+         speech engine fetches from the internet is not paid for out of someone's data allowance unasked. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <queries>
         <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
         <intent><action android:name="android.speech.RecognitionService" /></intent>

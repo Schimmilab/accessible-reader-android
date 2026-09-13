@@ -70,6 +70,26 @@ class ReaderCoreTest {
         assertTrue(report.contains("Davon bietet der Reader an: 1"))
         assertTrue(report.contains("im Reader nicht wählbar, Merkmale notInstalled"))
     }
+    @Test fun anOnlineVoiceIsOnlyUsedWhenTheConnectionAllowsIt() {
+        assertTrue(mayUseOnlineVoice(OnlineVoicePolicy.WIFI_ONLY, NetworkKind.UNMETERED))
+        assertFalse("Mobile data is not spent without being told to",
+            mayUseOnlineVoice(OnlineVoicePolicy.WIFI_ONLY, NetworkKind.METERED))
+        assertFalse(mayUseOnlineVoice(OnlineVoicePolicy.WIFI_ONLY, NetworkKind.NONE))
+        assertTrue(mayUseOnlineVoice(OnlineVoicePolicy.ALWAYS, NetworkKind.METERED))
+        assertFalse("Nothing works without a connection", mayUseOnlineVoice(OnlineVoicePolicy.ALWAYS, NetworkKind.NONE))
+        assertFalse(mayUseOnlineVoice(OnlineVoicePolicy.NEVER, NetworkKind.UNMETERED))
+    }
+    @Test fun theRefusalSaysWhatToDoAboutIt() {
+        assertTrue(onlineVoiceRefusal(OnlineVoicePolicy.WIFI_ONLY, NetworkKind.NONE).contains("nicht verbunden"))
+        assertTrue(onlineVoiceRefusal(OnlineVoicePolicy.WIFI_ONLY, NetworkKind.NONE).contains("offline arbeitet"))
+        assertTrue(onlineVoiceRefusal(OnlineVoicePolicy.WIFI_ONLY, NetworkKind.METERED).contains("mobile Daten erlauben"))
+        assertTrue(onlineVoiceRefusal(OnlineVoicePolicy.NEVER, NetworkKind.UNMETERED).contains("ausgeschaltet"))
+    }
+    @Test fun theVoiceListSaysWhichVoicesNeedTheInternet() {
+        assertEquals("Deutsch 1 · Deutschland", voiceLabel(0, "Deutschland", needsNetwork = false))
+        assertEquals("Deutsch 3 · Deutschland · braucht Internet", voiceLabel(2, "Deutschland", needsNetwork = true))
+        assertEquals("Deutsch 2 · lokal", voiceLabel(1, "", needsNetwork = false))
+    }
     @Test fun libraryLabelSaysWhatItIsHowLongAndWhereYouLeftOff() {
         val entry = LibraryEntry("abc", "Der Garten", 12, 0)
         assertEquals("Der Garten, 12 Abschnitte, noch nicht gehört.", libraryLabel(entry, 0, started = false))

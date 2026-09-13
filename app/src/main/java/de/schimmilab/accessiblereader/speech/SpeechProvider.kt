@@ -5,6 +5,7 @@ import android.media.MediaMetadataRetriever
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
+import de.schimmilab.accessiblereader.core.voiceLabel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -14,7 +15,7 @@ import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-data class ReaderVoice(val id: String, val label: String)
+data class ReaderVoice(val id: String, val label: String, val needsNetwork: Boolean = false)
 data class SpeechAudio(val file: File, val durationMs: Long)
 
 /** Providers return reusable audio. Cloud implementations must enforce consent and budget before synthesis. */
@@ -86,12 +87,19 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     override suspend fun voices(): List<ReaderVoice> {
         withTimeout(20_000) { ready.await() }
         val named = runCatching {
+            // Voices that fetch their audio from the internet are offered too, clearly marked. The engine does
+            // that in its own process, so this app still has no internet permission; what it must not do is
+            // spend mobile data unasked, which is why the caller checks the policy before using one.
             tts.voices.orEmpty().filter {
-                it.locale.language == "de" && !it.isNetworkConnectionRequired &&
+                it.locale.language == "de" &&
                     !it.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
             }
-                .sortedBy { it.name }
-                .mapIndexed { i, voice -> ReaderVoice(voice.name, "Deutsch ${i + 1} · ${voice.locale.getDisplayCountry(Locale.GERMAN).ifBlank { "lokal" }}") }
+                .sortedWith(compareBy({ it.isNetworkConnectionRequired }, { it.name }))
+                .mapIndexed { i, voice ->
+                    ReaderVoice(voice.name,
+                        voiceLabel(i, voice.locale.getDisplayCountry(Locale.GERMAN), voice.isNetworkConnectionRequired),
+                        voice.isNetworkConnectionRequired)
+                }
         }.getOrDefault(emptyList())
         if (named.isNotEmpty()) return named
         val available = runCatching { tts.isLanguageAvailable(Locale.GERMAN) }.getOrDefault(TextToSpeech.LANG_NOT_SUPPORTED)
@@ -101,7 +109,7 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
 
     override suspend fun synthesize(text: String, voiceId: String): SpeechAudio = mutex.withLock {
         withTimeout(20_000) { ready.await() }
-        val voice = runCatching { tts.voices.orEmpty().firstOrNull { it.name == voiceId && !it.isNetworkConnectionRequired } }.getOrNull()
+        val voice = runCatching { tts.voices.orEmpty().firstOrNull { it.name == voiceId } }.getOrNull()
         if (voice == null && voiceId != ENGINE_DEFAULT_VOICE) {
             error("Diese Stimme ist nicht mehr verfügbar. Bitte in den Einstellungen eine Stimme wählen.")
         }

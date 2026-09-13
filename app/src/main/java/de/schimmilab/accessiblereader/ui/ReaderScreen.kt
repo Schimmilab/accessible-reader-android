@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.schimmilab.accessiblereader.ReaderState
 import de.schimmilab.accessiblereader.ReaderViewModel
+import de.schimmilab.accessiblereader.core.OnlineVoicePolicy
 import de.schimmilab.accessiblereader.core.positionAnnouncement
 import de.schimmilab.accessiblereader.core.positionLabel
 import de.schimmilab.accessiblereader.core.voicesHeading
@@ -229,6 +230,23 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                         }
                         TextButton(onClick = { model.previewVoice(voice.id) }, enabled = !s.busy,
                             modifier = Modifier.heightIn(min = 56.dp).semantics { contentDescription = "Hörprobe für ${voice.label}" }) { Text("Probe") }
+                    }
+                }
+                item { Text("Stimmen aus dem Internet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }) }
+                item {
+                    Text("Manche Stimmen holen ihre Sprache aus dem Internet und klingen besser. Die App selbst geht " +
+                        "nie online, das erledigt die Sprachausgabe. Über mobile Daten kostet das Datenvolumen.",
+                        style = MaterialTheme.typography.bodyMedium)
+                }
+                itemsIndexed(listOf(
+                    OnlineVoicePolicy.WIFI_ONLY to "Nur im WLAN",
+                    OnlineVoicePolicy.ALWAYS to "Auch über mobile Daten",
+                    OnlineVoicePolicy.NEVER to "Gar nicht, nur Offline-Stimmen")) { _, (policy, label) ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(selected = s.onlineVoices == policy,
+                        enabled = !s.busy, role = Role.RadioButton, onClick = { model.onlineVoices(policy) }),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = s.onlineVoices == policy, onClick = null)
+                        Text(label, Modifier.padding(start = 8.dp))
                     }
                 }
                 item { TextButton(onClick = onVoiceSettings, enabled = !s.busy) { Text("Android-Sprachdaten öffnen") } }
