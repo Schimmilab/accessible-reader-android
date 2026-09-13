@@ -26,6 +26,8 @@ Requires Java 17 as Gradle JDK (daemon toolchain configured in `gradle/gradle-da
 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PlaybackFocusTest
 ```
 
+`.github/workflows/tests.yml` runs on every push: unit tests, lint and a debug build, plus `PdfImportTest`, `EpubImportTest` and `LibraryTest` on an emulator. Those three need no speech engine. Everything else does, and a fresh CI emulator has no German offline voice, so do not add voice or playback tests there; they would skip or fail for reasons that say nothing about the code.
+
 **Turn TalkBack off before an automated run, and back on for manual accessibility testing.** With it enabled, every status live-region update makes TalkBack speak and hold audio focus, so playback tests stall for minutes and time out; measured 43-79 s per test with it off against 250 s timeouts with it on. `docs/TESTING.md` has the two commands.
 
 Pass one test class per `connectedDebugAndroidTest` invocation; a comma-separated class list only runs the first class under AGP 9. Instrumented tests that seek or wait for a chapter end must first `waitUntil { !state.preparing }`: the emulator synthesizes at roughly 30 s per part, slower than playback. Start playback in tests through the model, not by clicking "Vorlesen", because a fresh install first shows the notification permission dialog.

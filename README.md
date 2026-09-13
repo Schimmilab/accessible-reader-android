@@ -1,5 +1,7 @@
 # Accessible Reader for Android
 
+[![Tests](https://github.com/Schimmilab/accessible-reader-android/actions/workflows/tests.yml/badge.svg)](https://github.com/Schimmilab/accessible-reader-android/actions/workflows/tests.yml)
+
 An open PDF reader that reads books aloud, built for people who cannot see the screen.
 
 Not a reader with accessibility added afterwards. TalkBack, spoken commands, headset and Bluetooth buttons and chapter navigation were the first requirements, not later ones. It is developed together with a friend of the author who has been blind since birth and who tests every version on her own phone.
@@ -69,6 +71,8 @@ Java 17, Android SDK 36, build tools 36.0.0. minSdk 26, targetSdk 36. AGP 9.4.0 
 The debug APK lands in `app/build/outputs/apk/debug/`.
 
 Device tests need an emulator or phone with German offline voice data. Pass one test class per invocation; a comma-separated list only runs the first under AGP 9.
+
+Every push runs the unit tests, lint and a debug build, plus the PDF, EPUB and library tests on an emulator. Everything about voices and playback stays on a development machine, because it depends on a German offline voice that a fresh emulator does not have, and a test that cannot run is worse than no test. Those results are recorded in each `docs/TEST-<version>.md` instead.
 
 **Turn TalkBack off before an automated run.** With it enabled every status update makes it speak and hold audio focus, so playback tests stall and time out. Measured: 43 to 79 seconds per test with it off, against 240 second timeouts with it on. The commands are in [docs/TESTING.md](docs/TESTING.md). That also means automated tests and manual accessibility testing cannot run at the same time.
 
