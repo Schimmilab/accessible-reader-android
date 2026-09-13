@@ -82,13 +82,12 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
+          # One class per invocation, and each on a single line: the action does not carry a line
+          # continuation across, and Gradle then looks for a task called backslash.
           script: |
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PdfImportTest
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.EpubImportTest
-            ./gradlew --no-daemon :app:connectedDebugAndroidTest \
-              -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.LibraryTest
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PdfImportTest
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.EpubImportTest
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.LibraryTest
 
       - name: Keep the reports
         if: always()
