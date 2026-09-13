@@ -174,14 +174,18 @@ class DocumentStore(private val context: Context) {
                 val sorted = marks.sortedBy { it.first }.distinctBy { it.first }.toMutableList()
                 val hasOutline = sorted.isNotEmpty()
                 if (hasOutline && sorted.first().first > 0) sorted.add(0, 0 to "Anfang")
-                val starts = if (hasOutline) sorted else pages.indices.map { it to "Seite ${it + 1}" }
+                // Without bookmarks, group pages instead of making every page a section. One section per page
+                // meant playback stopped for eight to twelve seconds at every page break.
+                val starts = if (hasOutline) sorted
+                    else groupPagesIntoSections(pages.map { it.length }).map { it to "" }
                 val chapters = starts.mapIndexed { index, (first, name) ->
                     val end = starts.getOrNull(index + 1)?.first ?: pages.size
-                    Chapter(name, first + 1, end, TextChunks.joinPages(pages.subList(first, end)))
+                    Chapter(name.ifBlank { pageRangeTitle(first + 1, end) }, first + 1, end,
+                        TextChunks.joinPages(pages.subList(first, end)))
                 }
                 val emptyPages = pages.count { it.isBlank() }
                 val notice = listOfNotNull(
-                    if (!hasOutline) "Keine Kapitelmarken gefunden. Das Inhaltsverzeichnis listet die Seiten." else "PDF-Kapitelmarken übernommen. Sprünge beginnen an der jeweiligen Seite.",
+                    if (!hasOutline) "Keine Kapitelmarken gefunden. Der Reader hat die Seiten zu Abschnitten zusammengefasst." else "PDF-Kapitelmarken übernommen. Sprünge beginnen an der jeweiligen Seite.",
                     if (recognized > 0) "$recognized eingescannte Seiten wurden mit Texterkennung gelesen. Dabei können Lesefehler entstehen." else null,
                     if (emptyPages > 0) "$emptyPages Seiten ohne lesbaren Text, auch die Texterkennung fand dort nichts." else null,
                     "Bei Spalten, Tabellen und Fußnoten bitte die Lesereihenfolge prüfen."

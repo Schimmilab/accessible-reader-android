@@ -7,6 +7,35 @@ data class Chapter(val title: String, val firstPage: Int, val lastPage: Int, val
 data class ReaderDocument(val id: String, val title: String, val chapters: List<Chapter>, val notice: String = "")
 data class AudioPosition(val item: Int, val offsetMs: Long)
 
+/**
+ * How much text one section should hold when a PDF brings no bookmarks of its own.
+ *
+ * One section per page looked tidy and listened badly: playback stops at the end of every section while the next
+ * one is synthesized, which measured 8 to 12 seconds of silence. On a 400 page book that is a pause after every
+ * page. Roughly ten thousand characters is about ten minutes of listening, so the silence arrives once per ten
+ * minutes instead of once per minute, and the spoken section number stops interrupting every page.
+ */
+const val SECTION_TARGET_CHARACTERS = 10_000
+
+/**
+ * Groups pages into sections, given how many characters each page holds. Returns the index of the first page of
+ * each section. A page that is longer than the target stands alone; a blank page never starts a section.
+ */
+fun groupPagesIntoSections(pageLengths: List<Int>, target: Int = SECTION_TARGET_CHARACTERS): List<Int> {
+    if (pageLengths.isEmpty()) return emptyList()
+    val starts = mutableListOf(0)
+    var carried = 0
+    pageLengths.forEachIndexed { index, length ->
+        if (index > 0 && carried >= target) { starts += index; carried = 0 }
+        carried += length
+    }
+    return starts
+}
+
+/** What a section of a book without bookmarks is called. */
+fun pageRangeTitle(firstPage: Int, lastPage: Int): String =
+    if (firstPage >= lastPage) "Seite $firstPage" else "Seiten $firstPage bis $lastPage"
+
 object AudioTimeline {
     fun absolute(durations: List<Long>, item: Int, offsetMs: Long): Long =
         durations.take(item.coerceIn(0, durations.size)).sum() + offsetMs.coerceAtLeast(0)
@@ -121,7 +150,7 @@ const val VOICE_SAMPLE = "Kapitel 3, Seite 127. Am 14. M√§rz um 8 Uhr 30 verlie√
 
 /** Spoken intro of every chapter, so listeners hear where they are without TalkBack. */
 object ChapterAnnouncement {
-    private val page = Regex("Seite \\d+")
+    private val page = Regex("Seiten? \\d+( bis \\d+)?")
     fun text(index: Int, total: Int, title: String): String =
         if (page.matches(title.trim())) "${title.trim()}." else "Abschnitt ${index + 1} von $total: ${title.trim()}."
 }

@@ -61,14 +61,17 @@ class ReaderCoreTest {
         val network = VoiceInfo("de-de-x-deb-network", "de_DE", true, 400)
         assertTrue(installed.offeredByTheReader)
         assertFalse("A voice whose data is missing cannot be used", notInstalled.offeredByTheReader)
-        assertFalse("The app never offers a voice that needs the network", network.offeredByTheReader)
+        assertTrue("Since 0.7.0 an online voice is offered, marked as such", network.offeredByTheReader)
 
         val report = SpeechReport("0.6.2", "samsung SM-S931B", "16", 36, false, "com.google.android.tts",
             listOf(EngineReport("com.google.android.tts", "Google", true, true, "verfügbar",
                 listOf(installed, notInstalled, network), "funktioniert"))).format()
         assertTrue(report.contains("Gemeldete deutsche Stimmen: 3, davon offline: 2"))
-        assertTrue(report.contains("Davon bietet der Reader an: 1"))
-        assertTrue(report.contains("im Reader nicht wählbar, Merkmale notInstalled"))
+        assertTrue(report.contains("Davon bietet der Reader an: 2"))
+        assertTrue(report.contains("im Reader nicht wählbar, Sprachdaten fehlen"))
+        assertTrue("The report has to say what to do about missing voice data",
+            report.contains("1 Stimmen sind nur angekündigt"))
+        assertTrue(report.contains("im Reader wählbar, holt die Sprache aus dem Internet"))
     }
     @Test fun anOnlineVoiceIsOnlyUsedWhenTheConnectionAllowsIt() {
         assertTrue(mayUseOnlineVoice(OnlineVoicePolicy.WIFI_ONLY, NetworkKind.UNMETERED))
@@ -113,7 +116,25 @@ class ReaderCoreTest {
     @Test fun chapterAnnouncementStaysShortForPageChapters() {
         assertEquals("Abschnitt 2 von 3: Unterwegs.", ChapterAnnouncement.text(1, 3, " Unterwegs "))
         assertEquals("Seite 7.", ChapterAnnouncement.text(6, 40, "Seite 7"))
+        assertEquals("Seiten 7 bis 12.", ChapterAnnouncement.text(1, 40, "Seiten 7 bis 12"))
         assertEquals("Abschnitt 1 von 1: Seite 7 und 8.", ChapterAnnouncement.text(0, 1, "Seite 7 und 8"))
+    }
+    @Test fun aBookWithoutBookmarksGetsSectionsWorthListeningTo() {
+        // One section per page stopped playback for 8 to 12 seconds at every page break, measured on the emulator.
+        val pages = List(40) { 1_500 }
+        val starts = groupPagesIntoSections(pages)
+        assertEquals("40 pages of 1500 characters should become about six sections", 6, starts.size)
+        assertEquals(0, starts.first())
+        assertTrue("Sections must not start twice on the same page", starts == starts.distinct())
+        assertTrue("Sections have to stay in order", starts == starts.sorted())
+
+        // A single long page stands alone rather than being split.
+        assertEquals(listOf(0, 1, 2), groupPagesIntoSections(listOf(30_000, 30_000, 30_000)))
+        // Blank pages never start a section of their own.
+        assertEquals(listOf(0), groupPagesIntoSections(listOf(0, 0, 0, 500)))
+        assertEquals(emptyList<Int>(), groupPagesIntoSections(emptyList()))
+        assertEquals("Seite 4", pageRangeTitle(4, 4))
+        assertEquals("Seiten 4 bis 9", pageRangeTitle(4, 9))
     }
     @Test fun languageAvailabilityIsTranslatedFromTheLegacyCodes() {
         // The codes engines answer with when they report no voices at all.

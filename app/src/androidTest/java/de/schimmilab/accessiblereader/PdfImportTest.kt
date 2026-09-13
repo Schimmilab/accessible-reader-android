@@ -33,9 +33,11 @@ class PdfImportTest {
         try {
             val store = DocumentStore(context)
             val document = store.importPdf(Uri.fromFile(file)) {}
-            assertEquals(2, document.chapters.size)
-            assertEquals("Seite 1", document.chapters[0].title)
-            assertTrue(document.chapters[1].text.contains("Testseite 2"))
+            // Two short pages hold far less than one section's worth of text, so they become one section.
+            assertEquals(1, document.chapters.size)
+            assertEquals("Seiten 1 bis 2", document.chapters[0].title)
+            assertTrue(document.chapters[0].text.contains("Testseite 1"))
+            assertTrue(document.chapters[0].text.contains("Testseite 2"))
             assertEquals(document, store.load(document.id))
         } finally { file.delete() }
     }
@@ -59,7 +61,11 @@ class PdfImportTest {
             val seconds = (System.currentTimeMillis() - started) / 1000.0
             android.util.Log.i("ReaderImportTest", "$pages Seiten in $seconds s, ${document.chapters.size} Abschnitte")
 
-            assertEquals(pages, document.chapters.size)
+            // Pages are grouped into sections worth listening to. One section per page made playback stop for
+            // eight to twelve seconds at every page break.
+            assertTrue("A 600 page book must not become 600 sections, it became ${document.chapters.size}",
+                document.chapters.size < pages / 10)
+            assertTrue("Sections must cover the whole book", document.chapters.last().lastPage == pages)
             assertTrue("Last page must be readable", document.chapters.last().text.contains("Seite $pages"))
             assertEquals(document, DocumentStore(context).load(document.id))
         } finally { runCatching { pdf.close() }; file.delete() }

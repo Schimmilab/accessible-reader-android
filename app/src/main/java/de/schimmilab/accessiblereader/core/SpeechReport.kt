@@ -2,11 +2,15 @@ package de.schimmilab.accessiblereader.core
 
 data class VoiceInfo(val name: String, val locale: String, val networkRequired: Boolean, val quality: Int,
                     val features: List<String> = emptyList()) {
+    /** Voice data that the engine names but has not downloaded. Such a voice cannot speak a word. */
+    val dataMissing: Boolean get() = features.contains("notInstalled")
+
     /**
-     * Whether the reader would put this voice in its list. A report that lists thirteen voices next to an app
-     * offering five leaves everyone guessing, so the report says which ones the app itself can use.
+     * Whether the reader would put this voice in its list. This has to follow the same rule as
+     * `AndroidSpeechProvider.voices`, or the report and the app contradict each other, which is what this line
+     * was added to prevent. Since 0.7.0 a voice that needs the internet is offered too, marked as such.
      */
-    val offeredByTheReader: Boolean get() = !networkRequired && !features.contains("notInstalled")
+    val offeredByTheReader: Boolean get() = !dataMissing
 }
 
 /** What one installed speech engine can actually do. Probed one engine at a time, not just the default one. */
@@ -55,10 +59,18 @@ fun SpeechReport.format(): String = buildString {
         appendLine("  Deutsch: ${engine.germanAvailability}")
         appendLine("  Gemeldete deutsche Stimmen: ${engine.germanVoices.size}, davon offline: ${engine.germanVoices.count { !it.networkRequired }}")
         appendLine("  Davon bietet der Reader an: ${engine.germanVoices.count { it.offeredByTheReader }}")
+        val missing = engine.germanVoices.count { it.dataMissing }
+        if (missing > 0) appendLine("  $missing Stimmen sind nur angekündigt, ihre Sprachdaten fehlen. " +
+            "Sie lassen sich in den Android-Einstellungen unter Sprachausgabe nachladen.")
         engine.germanVoices.forEach {
             val extra = if (it.features.isEmpty()) "" else ", Merkmale ${it.features.sorted().joinToString(" ")}"
+            val verdict = when {
+                it.dataMissing -> "im Reader nicht wählbar, Sprachdaten fehlen"
+                it.networkRequired -> "im Reader wählbar, holt die Sprache aus dem Internet"
+                else -> "im Reader wählbar"
+            }
             appendLine("    ${it.name}, ${it.locale}, ${if (it.networkRequired) "braucht Netz" else "offline"}, " +
-                "Qualität ${it.quality}, im Reader ${if (it.offeredByTheReader) "wählbar" else "nicht wählbar"}$extra")
+                "Qualität ${it.quality}, $verdict$extra")
         }
         append("  Audio in eine Datei schreiben: ${engine.fileSynthesis}")
         if (index < engines.lastIndex) appendLine()
