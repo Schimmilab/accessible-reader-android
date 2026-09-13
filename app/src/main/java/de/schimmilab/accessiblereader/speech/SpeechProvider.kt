@@ -24,6 +24,8 @@ interface SpeechProvider {
     val providerId: String
     suspend fun voices(): List<ReaderVoice>
     suspend fun synthesize(text: String, voiceId: String): SpeechAudio
+    /** Makes room before a section is prepared. A provider that keeps no files of its own has nothing to do. */
+    fun trimCache(budgetBytes: Long) {}
     fun close()
 }
 
@@ -184,7 +186,9 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
      * pages produces far more audio than any sane budget, so refusing to play once the cache is full would
      * strand a listener in the middle of a book. Deleted audio is simply synthesized again when needed.
      */
-    fun trimCache(budgetBytes: Long, keepBytes: Long = budgetBytes * 4 / 5) {
+    override fun trimCache(budgetBytes: Long) = trimCache(budgetBytes, budgetBytes * 4 / 5)
+
+    fun trimCache(budgetBytes: Long, keepBytes: Long) {
         val files = cache.listFiles().orEmpty().filter { it.isFile }
         var size = files.sumOf { it.length() }
         if (size <= budgetBytes) return

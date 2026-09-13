@@ -1,4 +1,4 @@
-# Architecture 0.6
+# Architecture 0.8
 
 > German strings quoted in this document are the app's own wording. The README section "Another language" translates the ones that recur.
 
@@ -15,6 +15,7 @@ Status: 12 September 2026 (selectable speech engine, library, self-diagnosis, se
 | `data/PageOcr.kt` | Renders a page without a text layer and recognizes the writing on it, entirely on the device |
 | `speech/SpeechProvider.kt` | Interchangeable audio generation, local Android TTS implementation, cache |
 | `speech/SpeechProbe.kt` | Checks a single installed speech engine for the self-diagnosis |
+| `playback/SectionPreparer.kt` | Turns one section into audio and hands it to the player, used by the app and by the service alike |
 | `playback/ReaderPlaybackService.kt` | Media3 playback, audio focus, media notification, saving during background playback, chapter semantics for media keys (`ChapterPlayer`) |
 | `ReaderViewModel.kt` | Import and playback state, preparation of a chapter, navigation |
 | `MainActivity.kt` | File picker, share intents, permissions, local speech recognition |

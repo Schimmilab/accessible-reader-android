@@ -15,8 +15,19 @@ import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import android.content.SharedPreferences
 import de.schimmilab.accessiblereader.MainActivity
 import de.schimmilab.accessiblereader.core.AudioTimeline
+import de.schimmilab.accessiblereader.data.DocumentStore
+import de.schimmilab.accessiblereader.speech.AndroidSpeechProvider
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @androidx.annotation.OptIn(UnstableApi::class)
 class ReaderPlaybackService : MediaSessionService() {
@@ -26,6 +37,51 @@ class ReaderPlaybackService : MediaSessionService() {
         const val COMMAND_PREVIOUS_CHAPTER = "de.schimmilab.accessiblereader.PREVIOUS_CHAPTER"
         /** Set while a chapter is still being synthesized, so the service can tell an empty buffer from a real end. */
         const val KEY_PREPARING = "preparing"
+
+        /**
+         * Set by the ViewModel while the app itself is alive. When it is gone, the service prepares the next
+         * section on its own, because nothing else will: playback of the current section already survives the
+         * activity, but the section after it used to be nobody's job once the ViewModel had died with the
+         * activity, and the book stopped wherever the listener happened to be.
+         */
+        const val KEY_UI_ALIVE = "uiAlive"
+    }
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var continuation: Job? = null
+
+    /**
+     * Continues the book when the app is gone. Everything needed is already in the current media item: the
+     * document id, the section and the voice. The text comes from the same store the app reads, so nothing has
+     * to be handed across.
+     */
+    private fun continueWithoutTheApp(player: Player, preferences: SharedPreferences) {
+        if (continuation?.isActive == true) return
+        if (player.playbackState != Player.STATE_ENDED || !player.playWhenReady) return
+        if (preferences.getBoolean(KEY_PREPARING, false)) return
+        if (preferences.getBoolean(KEY_UI_ALIVE, false)) return
+        val extra = player.currentMediaItem?.mediaMetadata?.extras ?: return
+        val documentId = extra.getString("document") ?: return
+        val next = extra.getInt("chapter") + 1
+        val voice = extra.getString("voice").orEmpty()
+        if (voice.isBlank()) return
+        continuation = scope.launch {
+            preferences.edit().putBoolean(KEY_PREPARING, true).apply()
+            val speech = AndroidSpeechProvider(applicationContext, preferences.getString("engine", "").orEmpty())
+            try {
+                val document = withContext(Dispatchers.IO) { DocumentStore(this@ReaderPlaybackService).load(documentId) }
+                    ?: return@launch
+                if (next !in document.chapters.indices || document.chapters[next].text.isBlank()) return@launch
+                SectionPreparer(speech, preferences, SectionPreparer.MIN_LEAD_MS, SectionPreparer.CACHE_BUDGET_BYTES)
+                    .prepare(player, document, next, voice, player.playbackParameters.speed, object : SectionProgress {})
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                android.util.Log.w("ReaderService", "Der naechste Abschnitt liess sich nicht vorbereiten", e)
+            } finally {
+                speech.close()
+                preferences.edit().putBoolean(KEY_PREPARING, false).apply()
+            }
+        }
     }
     private var session: MediaSession? = null
     override fun onCreate() {
@@ -58,6 +114,11 @@ class ReaderPlaybackService : MediaSessionService() {
         }
         handler.post(save)
         progressHandler = handler
+        player.addListener(object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) = continueWithoutTheApp(player, preferences)
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) =
+                continueWithoutTheApp(player, preferences)
+        })
         val activity = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val buttons = listOf(
             CommandButton.Builder(CommandButton.ICON_SKIP_BACK_30).setPlayerCommand(Player.COMMAND_SEEK_BACK).setDisplayName("30 Sekunden zurück")
@@ -72,6 +133,8 @@ class ReaderPlaybackService : MediaSessionService() {
         if (session?.player?.playWhenReady != true) stopSelf()
     }
     override fun onDestroy() {
+        continuation?.cancel()
+        scope.cancel()
         progressHandler?.removeCallbacksAndMessages(null)
         session?.run { player.release(); release() }
         session = null

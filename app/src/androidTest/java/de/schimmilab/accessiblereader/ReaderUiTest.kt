@@ -3,6 +3,7 @@ package de.schimmilab.accessiblereader
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -10,6 +11,7 @@ import org.junit.Test
 
 class ReaderUiTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    private lateinit var model: ReaderViewModel
 
     @Test fun contentsChangesChapterAndExposesNamedControls() {
         compose.onNodeWithText("Leseprobe").performClick()
@@ -45,5 +47,29 @@ class ReaderUiTest {
         compose.activityRule.scenario.recreate()
         compose.runOnIdle { model.seek(-30) }
         compose.waitUntil(5_000) { model.state.value.positionMs < 500 }
+    }
+
+    /**
+     * Setting the reading speed has to be usable through a screen reader: small enough steps to aim at, and the
+     * new value said out loud, because the reader keeps its focus on the button and never reads what changed.
+     */
+    @Test fun theSpeedCanBeAimedAtAndIsSpoken() {
+        compose.activityRule.scenario.onActivity { model = ViewModelProvider(it)[ReaderViewModel::class.java] }
+        compose.waitUntil(30_000) { model.state.value.connected }
+        compose.runOnIdle { model.speed(1f) }
+
+        // The controls live in a lazy list, so the list has to be scrolled, not the node.
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Schneller"))
+        compose.onNodeWithText("Schneller").performClick()
+        compose.waitForIdle()
+        assertEquals("One press has to be a tenth, not a quarter", 1.1f, model.state.value.speed, 0.001f)
+        assertEquals("Geschwindigkeit 1,1 fach.", model.state.value.status)
+        compose.onNodeWithText("1,1×").assertExists()
+
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Langsamer"))
+        compose.onNodeWithText("Langsamer").performClick()
+        compose.waitForIdle()
+        assertEquals(1f, model.state.value.speed, 0.001f)
+        assertEquals("Geschwindigkeit normal.", model.state.value.status)
     }
 }

@@ -20,11 +20,13 @@ import kotlin.coroutines.coroutineContext
 
 class DocumentStore(private val context: Context) {
     companion object {
-        // Sized for real books after a 600-page novel was refused. A page holds roughly 2.000 characters,
-        // so the three limits describe the same ceiling from three sides.
-        const val MAX_BYTES = 120L * 1024 * 1024
-        const val MAX_PAGES = 3000
-        const val MAX_CHARACTERS = 6_000_000
+        // Sized for real books. A 600-page novel was refused once, then a 3700-page one. A page holds roughly
+        // 2.000 characters, so the three limits describe the same ceiling from three sides. Raising them is not
+        // free: the text of a whole book is held in memory and written as one JSON file, so any change here
+        // needs a measurement at the new size, see PdfImportTest.
+        const val MAX_BYTES = 200L * 1024 * 1024
+        const val MAX_PAGES = 10_000
+        const val MAX_CHARACTERS = 20_000_000
 
         /** How many pages without a single character are enough to give up, recognition included. */
         const val SCAN_PROBE_PAGES = 25

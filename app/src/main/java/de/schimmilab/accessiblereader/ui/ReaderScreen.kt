@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.sp
 import de.schimmilab.accessiblereader.ReaderState
 import de.schimmilab.accessiblereader.ReaderViewModel
 import de.schimmilab.accessiblereader.core.OnlineVoicePolicy
+import de.schimmilab.accessiblereader.core.SPEED_MAX
+import de.schimmilab.accessiblereader.core.SPEED_MIN
+import de.schimmilab.accessiblereader.core.speedLabel
 import de.schimmilab.accessiblereader.core.positionAnnouncement
 import de.schimmilab.accessiblereader.core.positionLabel
 import de.schimmilab.accessiblereader.core.voicesHeading
@@ -128,9 +131,14 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                     Text("Stimme & Tempo", style = MaterialTheme.typography.titleLarge, modifier = Modifier.semantics { heading() })
                     Text("Lokale Teststimme · keine Cloud-Kosten", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { model.speed(s.speed - 0.25f) }, enabled = s.speed > 0.5f, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) { Text("Langsamer") }
-                        Text(String.format(Locale.GERMAN, "%.2f×", s.speed), modifier = Modifier.semantics { contentDescription = "Geschwindigkeit ${s.speed} fach" })
-                        OutlinedButton(onClick = { model.speed(s.speed + 0.25f) }, enabled = s.speed < 2f, modifier = Modifier.weight(1f).heightIn(min = 56.dp)) { Text("Schneller") }
+                        OutlinedButton(onClick = model::slower, enabled = s.speed > SPEED_MIN,
+                            modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+                                .semantics { stateDescription = "jetzt ${speedLabel(s.speed)} fach" }) { Text("Langsamer") }
+                        Text("${speedLabel(s.speed)}×",
+                            modifier = Modifier.semantics { contentDescription = "Geschwindigkeit ${speedLabel(s.speed)} fach" })
+                        OutlinedButton(onClick = model::faster, enabled = s.speed < SPEED_MAX,
+                            modifier = Modifier.weight(1f).heightIn(min = 56.dp)
+                                .semantics { stateDescription = "jetzt ${speedLabel(s.speed)} fach" }) { Text("Schneller") }
                     }
                     OutlinedButton(onClick = { model.settings(true) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Stimme und Einstellungen") }
                 }

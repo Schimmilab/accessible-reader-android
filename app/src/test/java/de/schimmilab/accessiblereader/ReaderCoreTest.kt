@@ -101,6 +101,23 @@ class ReaderCoreTest {
         // A stale saved chapter from an older import must not produce a label beyond the document.
         assertEquals("Der Garten, 12 Abschnitte, zuletzt bei Abschnitt 12 von 12.", libraryLabel(entry, 99, started = true))
     }
+    @Test fun theSpeedMovesInStepsSomeoneCanAimAt() {
+        // A quarter step was unusable: from normal the next one down was noticeably slow and the next one up
+        // noticeably fast, with nothing in between.
+        assertEquals(0.1f, SPEED_STEP)
+        assertEquals("1,0", speedLabel(1f))
+        assertEquals("1,2", speedLabel(1.2f))
+        assertEquals("0,5", speedLabel(0.5f))
+        // No floating point noise reaches a screen reader.
+        assertEquals("1,3", speedLabel(1.2999999f))
+    }
+    @Test fun everySpeedChangeIsSaidOutLoud() {
+        // The screen reader keeps its focus on the button that was pressed and never reads the value it changed.
+        assertEquals("Geschwindigkeit normal.", speedAnnouncement(1f))
+        assertEquals("Geschwindigkeit 1,2 fach.", speedAnnouncement(1.2f))
+        assertTrue(speedAnnouncement(SPEED_MIN).contains("langsamste Stufe"))
+        assertTrue(speedAnnouncement(SPEED_MAX).contains("schnellste Stufe"))
+    }
     @Test fun aVoiceThatCannotKeepUpSaysSo() {
         // Measured on an emulator: the stock Google voice needs about 0.04 of the listening time, the local
         // neural one between 0.6 and 1.2. The second kind decides whether a book plays through.

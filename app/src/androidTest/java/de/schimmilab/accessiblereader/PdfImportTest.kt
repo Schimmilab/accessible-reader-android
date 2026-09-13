@@ -41,9 +41,13 @@ class PdfImportTest {
             assertEquals(document, store.load(document.id))
         } finally { file.delete() }
     }
-    /** A 600-page novel was refused by the old 300-page limit. Real books have to go through. */
+    /**
+     * The limits have been raised twice by real books, most recently to 10,000 pages for one of 3700. Raising a
+     * number is free, surviving it is not: the text of a whole book is held in memory and written as one JSON
+     * file. So this imports a book the size of the one that prompted the change and reports what it costs.
+     */
     @Test fun aBookSizedPdfIsImported() = runBlocking {
-        val pages = 600
+        val pages = 3_700
         val file = File.createTempFile("reader-book", ".pdf", context.cacheDir)
         val pdf = PdfDocument()
         try {
@@ -59,7 +63,10 @@ class PdfImportTest {
             val started = System.currentTimeMillis()
             val document = DocumentStore(context).importPdf(Uri.fromFile(file)) {}
             val seconds = (System.currentTimeMillis() - started) / 1000.0
-            android.util.Log.i("ReaderImportTest", "$pages Seiten in $seconds s, ${document.chapters.size} Abschnitte")
+            val runtime = Runtime.getRuntime()
+            android.util.Log.i("ReaderImportTest", "$pages Seiten in $seconds s, ${document.chapters.size} Abschnitte, " +
+                "${document.chapters.sumOf { it.text.length }} Zeichen, " +
+                "${(runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024} MB belegt")
 
             // Pages are grouped into sections worth listening to. One section per page made playback stop for
             // eight to twelve seconds at every page break.

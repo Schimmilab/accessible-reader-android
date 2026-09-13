@@ -24,6 +24,8 @@ import com.google.common.util.concurrent.ListenableFuture
 import de.schimmilab.accessiblereader.core.*
 import de.schimmilab.accessiblereader.data.DocumentStore
 import de.schimmilab.accessiblereader.playback.ReaderPlaybackService
+import de.schimmilab.accessiblereader.playback.SectionPreparer
+import de.schimmilab.accessiblereader.playback.SectionProgress
 import de.schimmilab.accessiblereader.speech.*
 import de.schimmilab.accessiblereader.speech.SpeechProbe
 import kotlinx.coroutines.*
@@ -56,9 +58,9 @@ data class ReaderState(
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         /** Minimum audio buffered ahead of the start position before playback begins, so the chapter intro cannot drain into silence. */
-        const val MIN_LEAD_MS = 12_000L
+        const val MIN_LEAD_MS = SectionPreparer.MIN_LEAD_MS
         /** Upper bound for generated audio kept on the device; oldest is dropped first. */
-        const val CACHE_BUDGET_BYTES = 500L * 1024 * 1024
+        const val CACHE_BUDGET_BYTES = SectionPreparer.CACHE_BUDGET_BYTES
     }
     private val prefs = application.getSharedPreferences("reader", Application.MODE_PRIVATE)
     private val accessibility = application.getSystemService(Application.ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -86,7 +88,9 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     init {
         // A fresh view model means nothing is being prepared; clears a flag left behind by a killed process.
-        prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, false).apply()
+        // The second flag tells the service that the app is here and will look after the next section itself.
+        prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, false)
+            .putBoolean(ReaderPlaybackService.KEY_UI_ALIVE, true).apply()
         controllerFuture.addListener({
             runCatching { controllerFuture.get() }.onSuccess { controller ->
                 player = controller
@@ -218,53 +222,27 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             mutable.update { it.copy(busy = true, preparing = true, error = null) }
             var started = false
             try {
-                p.stop(); p.clearMediaItems(); preparedKey = null; durations = emptyList()
-                // Makes room instead of refusing: a long book outgrows any budget, and stopping mid-book is worse
-                // than synthesizing an old chapter again should the listener return to it.
-                withContext(Dispatchers.IO) { speech.trimCache(CACHE_BUDGET_BYTES) }
-                // Part 0 is always the spoken chapter intro, so saved item indexes stay stable.
-                val texts = listOf(ChapterAnnouncement.text(s.chapter, s.document.chapters.size, chapter.title)) + TextChunks.splitForPlayback(chapter.text)
-                val resume = prefs.getInt("${s.document.id}.chapter", 0) == s.chapter &&
-                    prefs.getString("${s.document.id}.voice", "") == s.voiceId && !prefs.getBoolean("${s.document.id}.finished", false)
-                val startItem = if (resume) prefs.getInt("${s.document.id}.item", 0).coerceIn(texts.indices) else 0
-                // Parts up to the resume point are needed before playback starts; everything after is appended while listening.
-                val items = mutableListOf<MediaItem>()
-                var leadMs = 0L        // audio buffered from the start position; playback waits until it clears MIN_LEAD_MS
-                var startOffset = 0L
-                texts.forEachIndexed { i, text ->
-                    if (!started && !quiet) mutable.update { it.copy(status = "Bereite Audio vor: Teil ${i + 1} von ${texts.size}.") }
-                    val began = System.currentTimeMillis()
-                    val part = speech.synthesize(text, s.voiceId)
-                    ensureActive()
-                    // Only real work counts. A cache hit costs nothing and would make every voice look instant.
-                    if (!part.fromCache && part.durationMs > 0) recordVoiceSpeed(s.voiceId,
-                        System.currentTimeMillis() - began, part.durationMs)
-                    val extra = Bundle().apply {
-                        putString("document", s.document.id); putInt("chapter", s.chapter); putString("voice", s.voiceId)
-                        putLong("duration", part.durationMs)
-                    }
-                    val item = MediaItem.Builder().setMediaId("$key:$i").setUri(Uri.fromFile(part.file))
-                        .setMediaMetadata(MediaMetadata.Builder().setTitle(chapter.title).setArtist(s.document.title).setExtras(extra).build()).build()
-                    if (started) {
-                        p.addMediaItem(item)
-                        // The player ran out of parts before this one arrived; continue unless the user paused.
-                        if (p.playWhenReady && p.playbackState == Player.STATE_ENDED) { p.seekTo(p.mediaItemCount - 1, 0); p.prepare(); p.play() }
-                        syncPlayer()
-                    } else {
-                        items += item
-                        if (i == startItem) startOffset = if (resume) prefs.getLong("${s.document.id}.offset", 0).coerceIn(0, part.durationMs) else 0
-                        if (i >= startItem) leadMs += part.durationMs
-                        // Start only once enough audio lies ahead, so the short chapter intro cannot drain before the first text part is ready.
-                        if (i >= startItem && (leadMs - startOffset >= MIN_LEAD_MS || i == texts.lastIndex)) {
-                            p.setMediaItems(items, startItem, startOffset)
-                            p.setPlaybackSpeed(state.value.speed); p.prepare(); p.play()
+                preparedKey = null; durations = emptyList()
+                // The very preparer the playback service uses when the app is gone, so there is one loop and not
+                // two copies of the subtleties it contains.
+                SectionPreparer(speech, prefs, MIN_LEAD_MS, CACHE_BUDGET_BYTES)
+                    .prepare(p, s.document, s.chapter, s.voiceId, state.value.speed, object : SectionProgress {
+                        override fun onPreparing(index: Int, total: Int) {
+                            if (!quiet) mutable.update { it.copy(status = "Bereite Audio vor: Teil ${index + 1} von $total.") }
+                        }
+                        override fun onSynthesized(workMs: Long, audioMs: Long, fromCache: Boolean) {
+                            // Only real work counts. A cache hit costs nothing and would make every voice look instant.
+                            if (!fromCache && audioMs > 0) recordVoiceSpeed(s.voiceId, workMs, audioMs)
+                        }
+                        override fun onStarted(key: String, pending: Int) {
                             preparedKey = key; started = true
                             syncPlayer()
-                            val more = if (texts.size > items.size) " Weitere Teile werden im Hintergrund vorbereitet." else ""
-                            mutable.update { it.copy(busy = false, status = if (quiet) it.status else "${chapter.title}. Wiedergabe läuft.$more") }
+                            val more = if (pending > 0) " Weitere Teile werden im Hintergrund vorbereitet." else ""
+                            mutable.update { it.copy(busy = false,
+                                status = if (quiet) it.status else "${chapter.title}. Wiedergabe läuft.$more") }
                         }
-                    }
-                }
+                        override fun onAppended() = syncPlayer()
+                    })
                 // The section is complete. Put the beginning of the next one into the audio cache while this one
                 // is still being listened to, so the change of section does not fall silent.
                 if (state.value.playbackRequested) prefetchNext(s.document, s.chapter + 1, s.voiceId)
@@ -343,11 +321,16 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         mutable.update { it.copy(status = if (seconds < 0) "${-seconds} Sekunden zurück, begrenzt auf den Kapitelanfang." else "$seconds Sekunden vor, begrenzt auf $end.") }
     }
     fun speed(value: Float) {
-        val speed = value.coerceIn(0.5f, 2f)
+        // Rounded to the step, so repeated presses cannot drift into 1.2000001 and make a screen reader read that.
+        val speed = (Math.round(value / SPEED_STEP) * SPEED_STEP).coerceIn(SPEED_MIN, SPEED_MAX)
         player?.setPlaybackSpeed(speed)
         prefs.edit().putFloat("speed", speed).apply()
-        mutable.update { it.copy(speed = speed) }
+        // Said out loud on purpose: the screen reader keeps its focus on the button that was pressed and would
+        // never read the value that changed because of it.
+        mutable.update { it.copy(speed = speed, status = speedAnnouncement(speed)) }
     }
+    fun slower() = speed(state.value.speed - SPEED_STEP)
+    fun faster() = speed(state.value.speed + SPEED_STEP)
     fun voice(id: String) {
         if (state.value.busy) return
         stopPreparation()
@@ -547,5 +530,11 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
     fun showError(message: String) { mutable.update { it.copy(error = message, status = message, listening = false) } }
     fun dismissError() { mutable.update { it.copy(error = null) } }
-    override fun onCleared() { work?.cancel(); speech.close(); MediaController.releaseFuture(controllerFuture); super.onCleared() }
+    override fun onCleared() {
+        // From here on the service continues the book on its own; nothing else would.
+        prefs.edit().putBoolean(ReaderPlaybackService.KEY_UI_ALIVE, false).apply()
+        work?.cancel(); prefetch?.cancel(); speech.close()
+        MediaController.releaseFuture(controllerFuture)
+        super.onCleared()
+    }
 }

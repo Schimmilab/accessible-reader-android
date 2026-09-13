@@ -110,3 +110,23 @@ fun voiceSpeedNote(ratio: Double): String? = when {
         "Der Anfang kommt später, und bei langen Abschnitten kann es kurze Pausen geben. " +
         "Eine andere Stimme liest flüssiger."
 }
+
+/**
+ * How much one press changes the reading speed. A quarter was too coarse to be usable: from normal speed the
+ * next step down was noticeably slow and the next one up noticeably fast, with nothing in between, and a
+ * listener working the buttons through a screen reader has no way to land on what she wants.
+ */
+const val SPEED_STEP = 0.1f
+const val SPEED_MIN = 0.5f
+const val SPEED_MAX = 2.0f
+
+/** The speed as German decimal, without trailing noise from floating point arithmetic. */
+fun speedLabel(speed: Float): String = String.format(java.util.Locale.GERMAN, "%.1f", speed)
+
+/** Spoken after a press, because a screen reader keeps its focus on the button and never reads the new value. */
+fun speedAnnouncement(speed: Float): String = when {
+    speed <= SPEED_MIN -> "Geschwindigkeit ${speedLabel(speed)} fach, langsamste Stufe."
+    speed >= SPEED_MAX -> "Geschwindigkeit ${speedLabel(speed)} fach, schnellste Stufe."
+    speed == 1f -> "Geschwindigkeit normal."
+    else -> "Geschwindigkeit ${speedLabel(speed)} fach."
+}
