@@ -86,7 +86,10 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     override suspend fun voices(): List<ReaderVoice> {
         withTimeout(20_000) { ready.await() }
         val named = runCatching {
-            tts.voices.orEmpty().filter { it.locale.language == "de" && !it.isNetworkConnectionRequired }
+            tts.voices.orEmpty().filter {
+                it.locale.language == "de" && !it.isNetworkConnectionRequired &&
+                    !it.features.orEmpty().contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+            }
                 .sortedBy { it.name }
                 .mapIndexed { i, voice -> ReaderVoice(voice.name, "Deutsch ${i + 1} · ${voice.locale.getDisplayCountry(Locale.GERMAN).ifBlank { "lokal" }}") }
         }.getOrDefault(emptyList())

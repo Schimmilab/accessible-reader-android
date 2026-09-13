@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.schimmilab.accessiblereader.ReaderState
 import de.schimmilab.accessiblereader.ReaderViewModel
+import de.schimmilab.accessiblereader.core.positionAnnouncement
+import de.schimmilab.accessiblereader.core.positionLabel
 import de.schimmilab.accessiblereader.core.voicesHeading
 import java.util.Locale
 
@@ -74,9 +76,10 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                         Text(if (chapter.firstPage == chapter.lastPage) "Seite ${chapter.firstPage}" else "Seiten ${chapter.firstPage} bis ${chapter.lastPage}", style = MaterialTheme.typography.bodyMedium)
                         LinearProgressIndicator(progress = { if (s.durationMs > 0) (s.positionMs.toFloat() / s.durationMs).coerceIn(0f, 1f) else 0f },
                             modifier = Modifier.fillMaxWidth().height(6.dp).clearAndSetSemantics { })
-                        val total = when { s.durationMs <= 0 -> "noch nicht vorbereitet"; s.preparing -> "${time(s.durationMs)} bisher, wird noch vorbereitet"; else -> time(s.durationMs) }
-                        Text("${time(s.positionMs)} / $total",
-                            modifier = Modifier.semantics { contentDescription = "Hörposition ${time(s.positionMs)}. ${when { s.durationMs <= 0 -> "Kapitel enthält noch kein vorbereitetes Audio"; s.preparing -> "Bisher ${time(s.durationMs)} vorbereitet, weitere Teile folgen"; else -> "Kapitel enthält ${time(s.durationMs)}" }}." }, style = MaterialTheme.typography.bodyMedium)
+                        Text(positionLabel(time(s.positionMs), time(s.durationMs), s.durationMs, s.preparing),
+                            modifier = Modifier.semantics {
+                                contentDescription = positionAnnouncement(time(s.positionMs), time(s.durationMs), s.durationMs, s.preparing)
+                            }, style = MaterialTheme.typography.bodyMedium)
                         Button(onClick = onPlay, enabled = !s.busy && s.connected && !s.listening,
                             modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).semantics { stateDescription = if (s.playbackRequested) "Vorlesen aktiviert" else "Wiedergabe pausiert" }) {
                             Text(if (s.playbackRequested) "Pause" else "Vorlesen", fontSize = 21.sp)

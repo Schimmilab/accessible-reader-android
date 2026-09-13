@@ -122,7 +122,7 @@ The German strings that appear throughout this documentation, so you can follow 
 | Erzeugtes Audio löschen | delete generated audio |
 | Standardstimme dieser Sprachausgabe | default voice of this speech engine |
 | Stimmen von Google: 5 | voices from Google: 5, the heading over the voice list |
-| noch nicht vorbereitet | not prepared yet, shown before audio exists |
+| Vorlesen drücken | press read aloud, shown in the position line before any audio exists |
 | Ankommen | "Arriving", a chapter title from the sample document |
 
 ## Contributing

@@ -1,6 +1,13 @@
 package de.schimmilab.accessiblereader.core
 
-data class VoiceInfo(val name: String, val locale: String, val networkRequired: Boolean, val quality: Int)
+data class VoiceInfo(val name: String, val locale: String, val networkRequired: Boolean, val quality: Int,
+                    val features: List<String> = emptyList()) {
+    /**
+     * Whether the reader would put this voice in its list. A report that lists thirteen voices next to an app
+     * offering five leaves everyone guessing, so the report says which ones the app itself can use.
+     */
+    val offeredByTheReader: Boolean get() = !networkRequired && !features.contains("notInstalled")
+}
 
 /** What one installed speech engine can actually do. Probed one engine at a time, not just the default one. */
 data class EngineReport(
@@ -47,8 +54,11 @@ fun SpeechReport.format(): String = buildString {
         appendLine("  Start: ${if (engine.started) "ok" else "lässt sich nicht starten"}")
         appendLine("  Deutsch: ${engine.germanAvailability}")
         appendLine("  Gemeldete deutsche Stimmen: ${engine.germanVoices.size}, davon offline: ${engine.germanVoices.count { !it.networkRequired }}")
+        appendLine("  Davon bietet der Reader an: ${engine.germanVoices.count { it.offeredByTheReader }}")
         engine.germanVoices.forEach {
-            appendLine("    ${it.name}, ${it.locale}, ${if (it.networkRequired) "braucht Netz" else "offline"}, Qualität ${it.quality}")
+            val extra = if (it.features.isEmpty()) "" else ", Merkmale ${it.features.sorted().joinToString(" ")}"
+            appendLine("    ${it.name}, ${it.locale}, ${if (it.networkRequired) "braucht Netz" else "offline"}, " +
+                "Qualität ${it.quality}, im Reader ${if (it.offeredByTheReader) "wählbar" else "nicht wählbar"}$extra")
         }
         append("  Audio in eine Datei schreiben: ${engine.fileSynthesis}")
         if (index < engines.lastIndex) appendLine()

@@ -44,6 +44,32 @@ class ReaderCoreTest {
         assertEquals("Der Garten geöffnet. 12 Abschnitte. Zuletzt bei Abschnitt 12. Vorlesen setzt dort fort.",
             openedMessage("Der Garten", 12, 99, started = true))
     }
+    @Test fun thePositionLineSaysWhatToDoInsteadOfWhatIsMissing() {
+        // "noch nicht vorbereitet" reads as something in progress. A listener waited four minutes for it to
+        // finish instead of pressing the button that starts it.
+        assertEquals("0:00 / Vorlesen drücken", positionLabel("0:00", "0:00", 0, preparing = false))
+        assertEquals("Hörposition 0:00. Für diesen Abschnitt ist noch kein Audio da. Vorlesen drücken, dann wird es erzeugt.",
+            positionAnnouncement("0:00", "0:00", 0, preparing = false))
+        assertEquals("0:12 / 1:40 bisher, wird noch vorbereitet", positionLabel("0:12", "1:40", 100_000, preparing = true))
+        assertEquals("1:00 / 4:00", positionLabel("1:00", "4:00", 240_000, preparing = false))
+        assertEquals("Hörposition 1:00. Kapitel enthält 4:00.", positionAnnouncement("1:00", "4:00", 240_000, false))
+    }
+    @Test fun theReportSaysWhichVoicesTheAppCanActuallyUse() {
+        // One device reported thirteen offline voices while the app offered five, and nothing said why.
+        val installed = VoiceInfo("de-de-x-star02-local", "de_DE", false, 400)
+        val notInstalled = VoiceInfo("de-de-x-star04-local", "de_DE", false, 400, listOf("notInstalled"))
+        val network = VoiceInfo("de-de-x-deb-network", "de_DE", true, 400)
+        assertTrue(installed.offeredByTheReader)
+        assertFalse("A voice whose data is missing cannot be used", notInstalled.offeredByTheReader)
+        assertFalse("The app never offers a voice that needs the network", network.offeredByTheReader)
+
+        val report = SpeechReport("0.6.2", "samsung SM-S931B", "16", 36, false, "com.google.android.tts",
+            listOf(EngineReport("com.google.android.tts", "Google", true, true, "verfügbar",
+                listOf(installed, notInstalled, network), "funktioniert"))).format()
+        assertTrue(report.contains("Gemeldete deutsche Stimmen: 3, davon offline: 2"))
+        assertTrue(report.contains("Davon bietet der Reader an: 1"))
+        assertTrue(report.contains("im Reader nicht wählbar, Merkmale notInstalled"))
+    }
     @Test fun libraryLabelSaysWhatItIsHowLongAndWhereYouLeftOff() {
         val entry = LibraryEntry("abc", "Der Garten", 12, 0)
         assertEquals("Der Garten, 12 Abschnitte, noch nicht gehört.", libraryLabel(entry, 0, started = false))

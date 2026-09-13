@@ -38,3 +38,23 @@ fun voicesHeading(engineLabel: String?, count: Int): String {
     if (count == 0) return "Stimmen von $engine: keine"
     return if (count == 1) "Stimmen von $engine: 1" else "Stimmen von $engine: $count"
 }
+
+/**
+ * The position line when no audio exists yet. "Noch nicht vorbereitet" reads as something the app is busy with,
+ * and a listener waited four minutes for it to finish instead of pressing the button that starts it. Say what to
+ * do, not what is missing.
+ */
+fun positionLabel(position: String, duration: String, durationMs: Long, preparing: Boolean): String =
+    "$position / " + when {
+        durationMs <= 0 -> "Vorlesen drücken"
+        preparing -> "$duration bisher, wird noch vorbereitet"
+        else -> duration
+    }
+
+/** The same line for a screen reader, which gets the whole sentence rather than the shorthand. */
+fun positionAnnouncement(position: String, duration: String, durationMs: Long, preparing: Boolean): String =
+    "Hörposition $position. " + when {
+        durationMs <= 0 -> "Für diesen Abschnitt ist noch kein Audio da. Vorlesen drücken, dann wird es erzeugt"
+        preparing -> "Bisher $duration vorbereitet, weitere Teile folgen"
+        else -> "Kapitel enthält $duration"
+    } + "."

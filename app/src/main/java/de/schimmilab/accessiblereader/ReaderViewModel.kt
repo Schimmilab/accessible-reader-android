@@ -350,7 +350,15 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun contents(open: Boolean) { mutable.update { it.copy(showContents = open) } }
-    fun settings(open: Boolean) { mutable.update { it.copy(showSettings = open, cacheBytes = speech.cacheSize()) } }
+    /**
+     * Opening the settings asks the engine for its voices again. An engine can report only its built-in voices
+     * right after starting and the downloaded ones a moment later, and a listener comparing the diagnosis with
+     * this list would otherwise see two different numbers with no way to reconcile them.
+     */
+    fun settings(open: Boolean) {
+        mutable.update { it.copy(showSettings = open, cacheBytes = speech.cacheSize()) }
+        if (open) refreshVoices()
+    }
     fun clearCache() {
         if (state.value.busy) return
         stopPreparation()

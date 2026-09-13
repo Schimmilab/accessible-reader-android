@@ -41,7 +41,7 @@ object SpeechProbe {
                 .getOrDefault(TextToSpeech.LANG_NOT_SUPPORTED)
             val voices = runCatching {
                 engine.voices.orEmpty().filter { it.locale.language == "de" }.sortedBy { it.name }
-                    .map { VoiceInfo(it.name, it.locale.toString(), it.isNetworkConnectionRequired, it.quality) }
+                    .map { VoiceInfo(it.name, it.locale.toString(), it.isNetworkConnectionRequired, it.quality, it.features.orEmpty().toList()) }
             }.getOrDefault(emptyList())
             val synthesis = when {
                 availability < 0 && voices.isEmpty() -> "nicht geprüft, diese Maschine kann kein Deutsch"
