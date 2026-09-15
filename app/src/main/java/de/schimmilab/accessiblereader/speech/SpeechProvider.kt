@@ -51,7 +51,14 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     private val cache = File(context.cacheDir, "speech").apply { mkdirs() }
     private val ready = CompletableDeferred<Unit>()
     private val pending = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
+    // One lock for everything that touches the engine. An engine with a single native synthesizer serves the
+    // book and a spoken announcement one after the other, and letting them start at once made the book's audio
+    // wait behind the announcement: measured 40 seconds against 12 without it, which then ran into the budget
+    // and stopped the book with a message the listener could do nothing about.
     private val mutex = Mutex()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var saying: Job? = null
+    private val speechDone = ConcurrentHashMap<String, CompletableDeferred<Unit>>()
     private val tts = build(context) { status ->
         if (status == TextToSpeech.SUCCESS) ready.complete(Unit)
         else ready.completeExceptionally(IllegalStateException("Die Sprachausgabe konnte nicht gestartet werden."))
@@ -60,7 +67,20 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     // A second engine for short spoken feedback. One engine cannot speak and write a file at the same time,
     // so sharing it silenced every announcement while a chapter was being prepared in the background.
     @Volatile private var announcerReady = false
-    private val announcer = build(context) { status -> announcerReady = status == TextToSpeech.SUCCESS }
+    private val announcer = build(context) { status ->
+        announcerReady = status == TextToSpeech.SUCCESS
+    }.apply {
+        setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(utteranceId: String?) = Unit
+            override fun onDone(utteranceId: String?) { utteranceId?.let { speechDone.remove(it)?.complete(Unit) } }
+            @Deprecated("Legacy callback")
+            override fun onError(utteranceId: String?) { utteranceId?.let { speechDone.remove(it)?.complete(Unit) } }
+            @Deprecated("Platform callback")
+            override fun onError(utteranceId: String?, errorCode: Int) {
+                utteranceId?.let { speechDone.remove(it)?.complete(Unit) }
+            }
+        })
+    }
 
     private fun build(context: Context, listener: (Int) -> Unit) =
         if (enginePackage.isBlank()) TextToSpeech(context.applicationContext, listener)
@@ -155,11 +175,31 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     }
 
     /** Speaks short feedback. Works while a chapter is being prepared; [voiceId] keeps it in the book voice. */
+    /**
+     * Speaks short feedback, behind the same lock as the book's audio. It therefore arrives after the piece
+     * currently being synthesized, which on a fast engine is imperceptible and on a slow one is a few seconds.
+     * Starting it at once instead is what stalled the book for half a minute.
+     */
     fun say(text: String, voiceId: String = "") {
         if (!announcerReady) return
-        val voice = runCatching { announcer.voices.orEmpty().firstOrNull { it.name == voiceId && !it.isNetworkConnectionRequired } }.getOrNull()
-        if (voice != null) announcer.setVoice(voice) else announcer.language = Locale.GERMAN
-        announcer.speak(text, TextToSpeech.QUEUE_FLUSH, null, "status")
+        saying?.cancel()
+        saying = scope.launch {
+            val id = UUID.randomUUID().toString()
+            val done = CompletableDeferred<Unit>()
+            try {
+                mutex.withLock {
+                    val voice = runCatching {
+                        announcer.voices.orEmpty().firstOrNull { it.name == voiceId && !it.isNetworkConnectionRequired }
+                    }.getOrNull()
+                    if (voice != null) announcer.setVoice(voice) else announcer.language = Locale.GERMAN
+                    speechDone[id] = done
+                    if (announcer.speak(text, TextToSpeech.QUEUE_FLUSH, null, id) != TextToSpeech.SUCCESS) return@withLock
+                    // Held until the sentence is out, so the next piece of the book does not start on top of it.
+                    // The cap is there so a stuck announcement can never hold the book hostage.
+                    withTimeoutOrNull(20_000) { done.await() }
+                }
+            } finally { speechDone.remove(id) }
+        }
     }
 
     /** Installed engines as package name to label, for the engine picker and the diagnosis. */
@@ -169,7 +209,11 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     fun defaultEngineName(): String = runCatching { tts.defaultEngine.orEmpty() }.getOrDefault("")
 
     fun isSaying(): Boolean = announcerReady && runCatching { announcer.isSpeaking }.getOrDefault(false)
-    fun stopSaying() { if (announcerReady) announcer.stop() }
+    fun stopSaying() {
+        saying?.cancel()
+        speechDone.values.forEach { it.complete(Unit) }
+        if (announcerReady) announcer.stop()
+    }
 
     private fun duration(file: File): Long = runCatching {
         val retriever = MediaMetadataRetriever()
@@ -200,6 +244,7 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     }
     fun clearCache() { cache.listFiles().orEmpty().forEach { it.delete() } }
     override fun close() {
+        scope.cancel()
         pending.values.forEach { it.cancel() }
         pending.clear()
         ready.cancel()
