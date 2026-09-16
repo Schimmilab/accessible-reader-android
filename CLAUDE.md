@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.9.4.
+Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.9.5.
 
 **The reference device is a Samsung Galaxy S25, Android 16 / One UI 8.5, Samsung TalkBack 16.2, Vocalizer speech engine, mostly a Bluetooth speaker** (`docs/decisions/0002-target-device-samsung-s25.md`). Only a Pixel emulator with Google TTS is available here, so the emulator proves logic and regressions, never that something works on the target. It is still unverified whether Vocalizer supports `synthesizeToFile`, which the whole audio pipeline depends on; the in-app diagnosis in the settings dialog exists to answer that remotely.
  Text PDFs and EPUB books are imported, split into chapters, synthesized to audio with a local German Android TTS voice and played through a MediaSession. Everything is designed around TalkBack, voice commands and media keys. Android is the lead platform by decision (`docs/decisions/0001-android-first.md`); do not design for a shared iOS codebase.
@@ -26,7 +26,7 @@ Requires Java 17 as Gradle JDK (daemon toolchain configured in `gradle/gradle-da
 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PlaybackFocusTest
 ```
 
-`.github/workflows/tests.yml` runs on every push: unit tests, lint and a debug build, plus `PdfImportTest`, `EpubImportTest` and `LibraryTest` on an emulator. Those three need no speech engine. Everything else does, and a fresh CI emulator has no German offline voice, so do not add voice or playback tests there; they would skip or fail for reasons that say nothing about the code.
+`.github/workflows/tests.yml` runs on every push: unit tests, lint and a debug build, plus `PdfImportTest`, `EpubImportTest`, `LibraryTest` and `AccessibilityRulesTest` on an emulator. Those four need no speech engine. Everything else does, and a fresh CI emulator has no German offline voice, so do not add voice or playback tests there; they would skip or fail for reasons that say nothing about the code.
 
 **Turn TalkBack off before an automated run, and back on for manual accessibility testing.** With it enabled, every status live-region update makes TalkBack speak and hold audio focus, so playback tests stall for minutes and time out; measured 43-79 s per test with it off against 250 s timeouts with it on. `docs/TESTING.md` has the two commands.
 
@@ -37,6 +37,7 @@ Debug APK: `app/build/outputs/apk/debug/app-debug.apk`.
 Test layout:
 - `app/src/test` (`ReaderCoreTest`): pure JVM tests for `core/ReaderModels.kt` (chunking, command parsing, audio timeline). Only place for logic that must run without a device.
 - `app/src/androidTest`: `PdfImportTest`, `ReaderUiTest`, `SpeechAudioTest`, `PlaybackFocusTest`, `ProgressivePreparationTest` (synthesizes a 5-chunk chapter, takes about 3 minutes on the emulator), `MediaButtonTest` (drives the session through a second `MediaController`, the way headsets and the notification do). They need a Google-Play emulator or device with a German *offline* TTS voice installed. `SpeechAudioTest` skips via `assumeTrue` if none exists; `PlaybackFocusTest` drives a real ExoPlayer and real audio focus and can take minutes.
+- `AccessibilityRulesTest` checks this project's own written rules against the real screen: every reachable control has a name, measures at least 48 by 48 dp, and no two share a name, plus headings to move by. It exists because `docs/TESTING.md` claimed for weeks that an accessibility framework was running here and none was; the first real run found five controls of 40 dp, one of them the button that closes the settings. Every `TextButton` needs `heightIn(min = 48.dp)`, the Material default is 40.
 - TalkBack behaviour is verified manually on the emulator (see `docs/TESTING.md`). A Compose click test does not replace a TalkBack double-tap test, and UI automation must not run while TalkBack gestures are being tested because it suppresses other accessibility services.
 
 ## Architecture

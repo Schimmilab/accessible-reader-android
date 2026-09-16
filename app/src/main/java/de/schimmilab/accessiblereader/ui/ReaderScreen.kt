@@ -103,7 +103,7 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (s.busy) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
-                        TextButton(onClick = model::cancelWork) { Text("Vorgang abbrechen") }
+                        TextButton(onClick = model::cancelWork, modifier = Modifier.heightIn(min = 48.dp)) { Text("Vorgang abbrechen") }
                     }
                     Text(s.status, style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
@@ -127,7 +127,7 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                         Text(if (s.listening) "Zuhören beenden" else "Sprachbefehl geben")
                     }
                     Text("Zum Beispiel: „30 Sekunden zurück“ oder „nächstes Kapitel“. Das Buch pausiert während der Eingabe.", style = MaterialTheme.typography.bodyMedium)
-                    TextButton(onClick = { commandHelp = true }) { Text("Alle Befehle und Texteingabe") }
+                    TextButton(onClick = { commandHelp = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Alle Befehle und Texteingabe") }
                 }
             }
             item {
@@ -157,7 +157,7 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
     if (s.showContents) AlertDialog(onDismissRequest = { model.contents(false) }, title = { Text("Inhaltsverzeichnis") },
         text = {
             LazyColumn(Modifier.heightIn(max = 450.dp)) {
-                item { TextButton(onClick = model::readContents, enabled = !s.busy) { Text("Übersicht vorlesen") } }
+                item { TextButton(onClick = model::readContents, enabled = !s.busy, modifier = Modifier.heightIn(min = 48.dp)) { Text("Übersicht vorlesen") } }
                 itemsIndexed(s.document.chapters) { index, c ->
                     Row(Modifier.fillMaxWidth().heightIn(min = 64.dp)
                         .selectable(selected = index == s.chapter, enabled = !s.busy && !s.listening, role = Role.RadioButton, onClick = { model.chapter(index) }).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -169,7 +169,7 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                     }
                 }
             }
-        }, confirmButton = { TextButton(onClick = { model.contents(false) }) { Text("Schließen") } })
+        }, confirmButton = { TextButton(onClick = { model.contents(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
     if (s.showLibrary) AlertDialog(onDismissRequest = { model.library(false) }, title = { Text("Bibliothek") },
         text = {
             if (s.library.isEmpty()) Text("Noch keine PDFs importiert. Über „PDF öffnen“ kommt dein erstes Dokument hierher.")
@@ -189,14 +189,14 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                     }
                 }
             }
-        }, confirmButton = { TextButton(onClick = { model.library(false) }) { Text("Schließen") } })
+        }, confirmButton = { TextButton(onClick = { model.library(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
     s.pendingRemoval?.let { id ->
         val name = s.library.firstOrNull { it.id == id }?.title ?: "Dieses Dokument"
         AlertDialog(onDismissRequest = { model.askRemoval(null) }, title = { Text("Wirklich entfernen?") },
             text = { Text("$name wird aus der Bibliothek entfernt. Der vorgelesene Text und die Hörposition gehen verloren. Deine PDF-Datei auf dem Gerät bleibt unberührt.") },
             // Not "Entfernen" again: two identically named buttons are indistinguishable by ear.
-            confirmButton = { TextButton(onClick = model::confirmRemoval) { Text("Ja, entfernen") } },
-            dismissButton = { TextButton(onClick = { model.askRemoval(null) }) { Text("Abbrechen") } })
+            confirmButton = { TextButton(onClick = model::confirmRemoval, modifier = Modifier.heightIn(min = 48.dp)) { Text("Ja, entfernen") } },
+            dismissButton = { TextButton(onClick = { model.askRemoval(null) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Abbrechen") } })
     }
     if (s.showSettings) AlertDialog(onDismissRequest = { model.settings(false) }, title = { Text("Stimme und Einstellungen") },
         text = {
@@ -267,12 +267,12 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                         Text(label, Modifier.padding(start = 8.dp))
                     }
                 }
-                item { TextButton(onClick = onVoiceSettings, enabled = !s.busy) { Text("Android-Sprachdaten öffnen") } }
-                item { TextButton(onClick = model::refreshVoices) { Text("Stimmen neu laden") } }
+                item { TextButton(onClick = onVoiceSettings, enabled = !s.busy, modifier = Modifier.heightIn(min = 48.dp)) { Text("Android-Sprachdaten öffnen") } }
+                item { TextButton(onClick = model::refreshVoices, modifier = Modifier.heightIn(min = 48.dp)) { Text("Stimmen neu laden") } }
                 item { Text("Erzeugtes Audio: ${s.cacheBytes / (1024 * 1024)} MB. Ab ${ReaderViewModel.CACHE_BUDGET_BYTES / 1024 / 1024} MB räumt der Reader das älteste selbst weg. Wird es wieder gebraucht, erzeugt er es neu.") }
                 item { OutlinedButton(onClick = model::clearCache, enabled = !s.busy) { Text("Erzeugtes Audio löschen") } }
             }
-        }, confirmButton = { TextButton(onClick = { model.settings(false) }) { Text("Fertig") } })
+        }, confirmButton = { TextButton(onClick = { model.settings(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Fertig") } })
     if (commandHelp) {
         var input by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { commandHelp = false }, title = { Text("Sprachbefehle") }, text = {
@@ -281,11 +281,11 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                 Text("Zum Testen lässt sich ein Befehl auch eingeben.")
                 OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Befehl eingeben") })
             }
-        }, confirmButton = { TextButton(onClick = { commandHelp = false; model.command(input) }, enabled = input.isNotBlank() && !s.busy) { Text("Ausführen") } },
-            dismissButton = { TextButton(onClick = { commandHelp = false }) { Text("Schließen") } })
+        }, confirmButton = { TextButton(onClick = { commandHelp = false; model.command(input) }, enabled = input.isNotBlank() && !s.busy, modifier = Modifier.heightIn(min = 48.dp)) { Text("Ausführen") } },
+            dismissButton = { TextButton(onClick = { commandHelp = false }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
     }
     s.error?.let { message -> AlertDialog(onDismissRequest = model::dismissError, title = { Text("Hinweis") }, text = { Text(message) },
-        confirmButton = { TextButton(onClick = model::dismissError) { Text("Verstanden") } }) }
+        confirmButton = { TextButton(onClick = model::dismissError, modifier = Modifier.heightIn(min = 48.dp)) { Text("Verstanden") } }) }
 }
 
 private fun time(ms: Long): String = String.format(Locale.GERMAN, "%d:%02d", ms / 60000, (ms / 1000) % 60)

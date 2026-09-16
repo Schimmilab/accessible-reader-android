@@ -75,7 +75,7 @@ jobs:
       # Only the tests that need no speech engine. Everything about voices and playback depends on a
       # German offline voice being installed, which a fresh emulator does not have, so those stay on
       # the development machine and are recorded in each docs/TEST-<version>.md instead.
-      - name: PDF and EPUB import
+      - name: Import and accessibility rules
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -89,6 +89,7 @@ jobs:
             ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PdfImportTest && mkdir -p results/PdfImportTest && cp -r app/build/outputs/androidTest-results/connected/. results/PdfImportTest/
             ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.EpubImportTest && mkdir -p results/EpubImportTest && cp -r app/build/outputs/androidTest-results/connected/. results/EpubImportTest/
             ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.LibraryTest && mkdir -p results/LibraryTest && cp -r app/build/outputs/androidTest-results/connected/. results/LibraryTest/
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.AccessibilityRulesTest && mkdir -p results/AccessibilityRulesTest && cp -r app/build/outputs/androidTest-results/connected/. results/AccessibilityRulesTest/
 
       - name: Keep the reports
         if: always()

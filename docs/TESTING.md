@@ -105,7 +105,11 @@ At least one test is created for every core function:
 - Errors appear as an audible message and receive the focus.
 - No core action is reachable only by a gesture.
 
-In addition the Android Accessibility Test Framework is enabled. It detects, among other things, missing labels, targets that are too small, contrast problems and parts of the wrong focus order.
+`AccessibilityRulesTest` checks the rules above against the real screen on every push, on the main screen, the contents and the settings: every control a screen reader can reach carries a name, measures at least 48 by 48 density pixels, and no two controls share a name. It also insists on headings, because a screen reader moves by them.
+
+It was written after noticing that this document claimed for weeks that the Android Accessibility Test Framework was running here. No such code existed. The framework's Compose binding is not public in the version this project uses, so the rules this project itself wrote down are checked directly instead. The first run found five controls of 40 density pixels, one of them the button that closes the settings.
+
+What it does not cover: contrast, focus order, and anything that only shows up under a real screen reader. Those still need the manual walk described above.
 
 ## Listening test for voices
 

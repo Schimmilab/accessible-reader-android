@@ -93,7 +93,7 @@ Every push runs the unit tests, lint and a debug build, plus the PDF, EPUB and l
 - The app times every voice while it prepares a section and says so under the voice list when one cannot keep up with listening. A local neural voice sounds better and needs about thirty times longer to produce than a stock one, which is invisible until a book starts stopping to catch up.
 - Changing the voice restarts the chapter from the beginning.
 - Generated audio is trimmed at 500 MB, least recently heard first, and re-synthesized if needed.
-- No formal accessibility audit yet, and no systematic testing across manufacturers.
+- Every control on the main screen, the contents and the settings is checked on every push: it carries a name, measures at least 48 by 48 density pixels, and shares its name with no other control. Contrast, focus order and everything that only appears under a real screen reader still need a manual walk, and there is no systematic testing across manufacturers.
 
 ## Principles
 
