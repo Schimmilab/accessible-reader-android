@@ -90,9 +90,9 @@ class ReaderCoreTest {
     }
     @Test fun theVoiceListSaysWhichVoicesNeedTheInternet() {
         assertEquals("Deutsch 1 · Deutschland", voiceLabel(0, "Deutschland", needsNetwork = false))
-        assertEquals("a voice is named by what it is good for, not only by what it costs",
-            "Deutsch 3 · Deutschland · aus dem Internet, meist natürlicher",
-            voiceLabel(2, "Deutschland", needsNetwork = true))
+        assertEquals("the label says what the voice does, never how it sounds: the listener found the online " +
+            "voices of her engine worse than the offline ones, so a recommendation here would be a false one",
+            "Deutsch 3 · Deutschland · braucht Internet", voiceLabel(2, "Deutschland", needsNetwork = true))
         assertEquals("Deutsch 2 · lokal", voiceLabel(1, "", needsNetwork = false))
     }
     @Test fun libraryLabelSaysWhatItIsHowLongAndWhereYouLeftOff() {

@@ -91,11 +91,12 @@ fun onlineVoiceRefusal(policy: OnlineVoicePolicy, network: NetworkKind): String 
 /** How the voice list describes a voice, so nobody picks an online voice without knowing it is one. */
 fun voiceLabel(index: Int, country: String, needsNetwork: Boolean): String {
     val place = country.ifBlank { "lokal" }
-    // Named by what it is good for, not only by what it costs. The listener asked for "menschlichere Stimmen"
-    // while the ones that sound that way were sitting in her list, marked with nothing but a warning about the
-    // internet. A list of "Deutsch 1" to "Deutsch 8" gives no reason to try number 6 rather than number 2, and
-    // trying one by ear costs a sample each.
-    return if (needsNetwork) "Deutsch ${index + 1} · $place · aus dem Internet, meist natürlicher"
+    // Says what the voice does, not how it sounds. 0.10.4 called these "meist natürlicher", on the assumption
+    // that a voice fetched from the internet is the better one. The listener tried them and reported the
+    // opposite: on her phone the online voices of the Google engine are the older ones and sound worse than
+    // the offline voices already installed. An app that recommends by assumption sends someone down a path
+    // that costs them their data and their evening, so it says what it knows instead.
+    return if (needsNetwork) "Deutsch ${index + 1} · $place · braucht Internet"
     else "Deutsch ${index + 1} · $place"
 }
 

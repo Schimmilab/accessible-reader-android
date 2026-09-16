@@ -30,7 +30,7 @@ class OnlineVoiceTest {
         Log.i("ReaderOnline", "Stimmen gesamt ${model.state.value.voices.size}, davon online ${online.size}")
         assumeTrue("This engine offers no network voice", online.isNotEmpty())
         assertTrue("An online voice has to say so in its label: ${online.first().label}",
-            online.first().label.contains("aus dem Internet"))
+            online.first().label.contains("braucht Internet"))
         assertFalse("Offline voices must not be marked",
             model.state.value.voices.first { !it.needsNetwork }.label.contains("Internet"))
     }

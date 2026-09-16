@@ -377,9 +377,10 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                 }
                 item { Text("Stimmen aus dem Internet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }) }
                 item {
-                    Text("Manche Stimmen holen ihre Sprache aus dem Internet und klingen besser. Die App selbst geht " +
-                        "nie online, das erledigt die Sprachausgabe. Über mobile Daten kostet das Datenvolumen.",
-                        style = MaterialTheme.typography.bodyMedium)
+                    Text("Manche Stimmen holen ihre Sprache aus dem Internet. Ob sie besser klingen als die " +
+                        "installierten, hängt von der Sprachausgabe ab — hör sie mit „Probe“ gegeneinander. Die App " +
+                        "selbst geht nie online, das erledigt die Sprachausgabe. Über mobile Daten kostet das " +
+                        "Datenvolumen.", style = MaterialTheme.typography.bodyMedium)
                 }
                 itemsIndexed(listOf(
                     OnlineVoicePolicy.WIFI_ONLY to "Nur im WLAN",
