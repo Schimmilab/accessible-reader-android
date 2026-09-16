@@ -168,6 +168,31 @@ fun voiceSpeedNote(ratio: Double, wordsPerMinute: Int): String {
 
 
 /**
+ * What to say when a voice took longer than it was given.
+ *
+ * The old message was "Bitte eine andere Stimme wählen oder es noch einmal versuchen", and the listener it was
+ * written for answered: "Ich glaube, ich bin blöd." Which other one? Trying again with the same voice is the
+ * one thing that cannot help. So this names the voices that have kept up so far — the app has measured every
+ * voice it has ever read with — and says where to find them.
+ */
+fun slowVoiceMessage(seconds: Long, faster: List<String>): String {
+    val what = "Diese Stimme hat für ein Stück Text länger als $seconds Sekunden gebraucht und ist für dieses " +
+        "Buch zu langsam."
+    val how = when {
+        faster.isEmpty() -> "Unter „Stimme und Einstellungen“ kannst du eine andere wählen. Dort steht bei " +
+            "jeder Stimme, die schon einmal gelesen hat, wie schnell sie ist."
+        faster.size == 1 -> "Gut mitgekommen ist bisher: ${faster.first()}. Du findest sie unter " +
+            "„Stimme und Einstellungen“."
+        else -> "Gut mitgekommen sind bisher: ${faster.take(3).joinToString(", ")}. Du findest sie unter " +
+            "„Stimme und Einstellungen“."
+    }
+    return "$what $how"
+}
+
+/** A voice that needs less than half the listening time to produce its audio keeps up comfortably. */
+const val KEEPS_UP_RATIO = 0.5
+
+/**
  * How much one press changes the reading speed. A quarter was too coarse to be usable: from normal speed the
  * next step down was noticeably slow and the next one up noticeably fast, with nothing in between, and a
  * listener working the buttons through a screen reader has no way to land on what she wants.

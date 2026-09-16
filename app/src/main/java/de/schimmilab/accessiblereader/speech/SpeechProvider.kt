@@ -19,6 +19,16 @@ data class ReaderVoice(val id: String, val label: String, val needsNetwork: Bool
 /** [fromCache] tells a measurement apart from a file that was already there; a cache hit costs no time. */
 data class SpeechAudio(val file: File, val durationMs: Long, val fromCache: Boolean = false)
 
+/**
+ * The engine took longer for one piece of text than it was given.
+ *
+ * Its own kind, for two reasons. It must not be retried: the retry exists for an engine that answers with an
+ * empty file, where a second attempt costs nothing, while trying a voice that is simply too slow a second time
+ * makes a listener who is already waiting wait exactly as long again. And the app can say something far more
+ * useful about this than about a failure in general, because it knows which voices have kept up so far.
+ */
+class VoiceTooSlowException(val budgetMs: Long, message: String) : IllegalStateException(message)
+
 /** Providers return reusable audio. Cloud implementations must enforce consent and budget before synthesis. */
 interface SpeechProvider {
     val providerId: String
@@ -169,9 +179,10 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
                 // text. withTimeoutOrNull on purpose: withTimeout throws a CancellationException, which every
                 // caller has to treat as "the user cancelled", and a swallowed timeout leaves a listener waiting.
                 val budget = synthesisBudgetMs(text.length)
-                withTimeoutOrNull(budget) { completion.await() }
-                    ?: error("Diese Stimme hat für diesen Abschnitt länger als ${budget / 1000} Sekunden gebraucht. " +
-                        "Bitte eine andere Stimme wählen oder es noch einmal versuchen.")
+                if (withTimeoutOrNull(budget) { completion.await() } == null) {
+                    throw VoiceTooSlowException(budget,
+                        "Diese Stimme hat für diesen Abschnitt länger als ${budget / 1000} Sekunden gebraucht.")
+                }
                 val duration = withContext(Dispatchers.IO) { duration(temp) }
                 // Separated so a failure says which half went wrong. Calling a perfectly produced file
                 // incomplete because it could not be renamed sent one investigation down the wrong road.
@@ -188,6 +199,11 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
                 // Caught before the line below, because kotlinx's CancellationException IS an
                 // IllegalStateException. Without this, cancelling a chapter would be retried instead of
                 // obeyed, and a listener who pressed for another section would wait through the old one.
+                throw e
+            } catch (e: VoiceTooSlowException) {
+                // Not retried, for the same reason: a second attempt with a voice that is too slow costs the
+                // listener the whole wait again. Measured worst case before this, a thousand characters at the
+                // 300 ms per character the budget allows: five minutes of silence, then five more.
                 throw e
             } catch (e: IllegalStateException) {
                 lastFailure = e

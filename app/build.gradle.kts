@@ -19,8 +19,8 @@ android {
         applicationId = "de.schimmilab.accessiblereader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 33
-        versionName = "0.10.2"
+        versionCode = 34
+        versionName = "0.10.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     if (canSign) {

@@ -285,7 +285,14 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 // app had: a slow voice simply stopped, with no sound, no message and nothing to press.
                 if (e is CancellationException && e !is TimeoutCancellationException) throw e
                 if (started) preparedKey = null // next Play retries the missing parts from the saved position
-                showError(if (started) "Das restliche Audio dieses Kapitels konnte nicht vorbereitet werden. Bitte Vorlesen erneut starten." else e.message ?: "Audio konnte nicht vorbereitet werden.")
+                showError(when {
+                    // The failure this app has already had once, and the one message that has to earn its keep:
+                    // a listener told "choose another voice" with no idea which one answered "Ich glaube, ich
+                    // bin blöd". So it names the voices that have kept up, measured while they were reading.
+                    e is VoiceTooSlowException -> slowVoiceMessage(e.budgetMs / 1000, voicesThatKeepUp())
+                    started -> "Das restliche Audio dieses Kapitels konnte nicht vorbereitet werden. Bitte Vorlesen erneut starten."
+                    else -> e.message ?: "Audio konnte nicht vorbereitet werden."
+                })
             } finally {
                 prefs.edit().putBoolean(ReaderPlaybackService.KEY_PREPARING, false).apply()
                 mutable.update { it.copy(busy = false, preparing = false, cacheBytes = speech.cacheSize()) }
@@ -680,6 +687,22 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         val remaining = remainingTimeLabel(left, measuredWordsPerMinute(s.voiceId))
         return listOfNotNull(here, bookProgressLabel(heard / total), remaining).joinToString(" ")
     }
+
+    /**
+     * The voices this app has measured as comfortably faster than listening, by their names on the screen.
+     *
+     * Only voices that have really read something are named. A recommendation the app has not measured would be
+     * a guess, and this message exists precisely because the old one left the listener guessing.
+     */
+    private fun voicesThatKeepUp(): List<String> = state.value.voices
+        .filter { it.id != state.value.voiceId && !it.needsNetwork }
+        .mapNotNull { voice ->
+            val audio = prefs.getLong("speed.${voice.id}.audio", 0)
+            val work = prefs.getLong("speed.${voice.id}.work", 0)
+            if (audio > 0 && work.toDouble() / audio < KEEPS_UP_RATIO) voice.label to work.toDouble() / audio else null
+        }
+        .sortedBy { it.second }
+        .map { it.first }
 
     /** What was measured about this voice while it was reading, or zero while nothing has been. */
     private fun measuredWordsPerMinute(voiceId: String): Int {
