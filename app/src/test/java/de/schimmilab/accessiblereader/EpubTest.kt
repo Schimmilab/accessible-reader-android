@@ -172,4 +172,26 @@ class EpubTest {
         assertEquals("Kapitel 3", sectionTitle("Kapitel 3", 5))
         assertEquals("1 Introduction", sectionTitle("1 Introduction", 0))
     }
+
+    @Test fun fontScramblingIsNotCopyProtection() {
+        // Two books in the collection carry this and read perfectly. Calling them protected would be wrong,
+        // and calling a genuinely protected book damaged sends someone looking for a broken download.
+        val fontsOnly = """<encryption xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+            <enc:EncryptedData><enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+              <enc:CipherData><enc:CipherReference URI="OEBPS/Fonts/Baskerville.otf"/></enc:CipherData>
+            </enc:EncryptedData>
+            <enc:EncryptedData><enc:EncryptionMethod Algorithm="http://ns.adobe.com/pdf/enc#RC"/>
+              <enc:CipherData><enc:CipherReference URI="OEBPS/font/Apercu.otf"/></enc:CipherData>
+            </enc:EncryptedData></encryption>"""
+        assertEquals(emptySet<String>(), Epub.encryptedPaths(fontsOnly))
+
+        val locked = """<encryption xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+            <enc:EncryptedData><enc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
+              <enc:CipherData><enc:CipherReference URI="OEBPS/Text/kapitel%201.xhtml"/></enc:CipherData>
+            </enc:EncryptedData></encryption>"""
+        assertEquals("A percent encoded path has to come back readable",
+            setOf("OEBPS/Text/kapitel 1.xhtml"), Epub.encryptedPaths(locked))
+
+        assertEquals(emptySet<String>(), Epub.encryptedPaths("<encryption/>"))
+    }
 }

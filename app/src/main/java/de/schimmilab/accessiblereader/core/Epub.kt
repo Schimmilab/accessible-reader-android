@@ -118,6 +118,34 @@ object Epub {
         return pieces
     }
 
+    /**
+     * The two schemes that only scramble embedded fonts. They are not copy protection and say nothing about
+     * whether the text can be read; two books in the test collection carry one of them and read perfectly.
+     */
+    private val FONT_OBFUSCATION = setOf(
+        "http://www.idpf.org/2008/embedding",   // the IDPF scheme
+        "http://ns.adobe.com/pdf/enc#RC")       // the older Adobe one
+
+    /**
+     * Files whose content is genuinely encrypted, taken from META-INF/encryption.xml. Font obfuscation is
+     * ignored, because it is not copy protection.
+     *
+     * The point is to tell a listener the truth. A copy-protected book used to be reported as damaged, which
+     * sends someone looking for a broken download that is not broken at all.
+     */
+    fun encryptedPaths(encryptionXml: String): Set<String> =
+        Regex("""<[^>]*EncryptedData[^>]*>(.*?)</[^>]*EncryptedData>""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)).findAll(encryptionXml).mapNotNull { block ->
+            val body = block.groupValues[1]
+            val algorithm = Regex("""Algorithm\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                .find(body)?.groupValues?.get(1).orEmpty()
+            if (algorithm in FONT_OBFUSCATION) return@mapNotNull null
+            Regex("""CipherReference[^>]*URI\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                .find(body)?.groupValues?.get(1)?.let { uri ->
+                    runCatching { java.net.URLDecoder.decode(uri, "UTF-8") }.getOrDefault(uri).trimStart('/')
+                }
+        }.toSet()
+
     /** Resolves an href against the directory it was written in, including any number of leading `../`. */
     fun resolve(base: String, href: String): String {
         if (href.startsWith("/")) return href.trimStart('/')

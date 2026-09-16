@@ -133,4 +133,57 @@ class EpubImportTest {
             assertTrue(error.message!!, error.message!!.contains("beschädigt"))
         } finally { file.delete() }
     }
+
+    /** A locked book has to be called locked, not damaged. The difference decides where someone looks next. */
+    @Test fun aCopyProtectedEpubSaysSoInsteadOfClaimingDamage() = runBlocking {
+        val file = File.createTempFile("reader-drm", ".epub", context.cacheDir)
+        ZipOutputStream(file.outputStream()).use { zip ->
+            fun put(path: String, body: String) {
+                zip.putNextEntry(ZipEntry(path)); zip.write(body.toByteArray()); zip.closeEntry()
+            }
+            put("META-INF/container.xml", """<container><rootfiles><rootfile full-path="OEBPS/buch.opf"
+                media-type="application/oebps-package+xml"/></rootfiles></container>""")
+            put("META-INF/encryption.xml", """<encryption xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+                <enc:EncryptedData><enc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
+                  <enc:CipherData><enc:CipherReference URI="OEBPS/text/eins.xhtml"/></enc:CipherData>
+                </enc:EncryptedData></encryption>""")
+            put("OEBPS/buch.opf", """<package version="3.0"><metadata><dc:title>Gekauftes Buch</dc:title></metadata>
+                <manifest><item id="c1" href="text/eins.xhtml" media-type="application/xhtml+xml"/></manifest>
+                <spine><itemref idref="c1"/></spine></package>""")
+            put("OEBPS/text/eins.xhtml", "\u0001\u0002 verschluesselter Unsinn")
+        }
+        try {
+            val error = runCatching { DocumentStore(context).import(Uri.fromFile(file)) {} }.exceptionOrNull()
+            assertNotNull("A locked book has to be refused", error)
+            Log.i("ReaderEpub", "kopiergeschuetzt: ${error!!.message}")
+            assertTrue(error.message!!, error.message!!.contains("kopiergeschützt"))
+            assertFalse("It is not damaged and must not be called that",
+                error.message!!.contains("beschädigt"))
+        } finally { file.delete() }
+    }
+
+    /** The two books in the collection that scramble only their fonts still have to read. */
+    @Test fun aBookThatOnlyScramblesItsFontsStillReads() = runBlocking {
+        val file = File.createTempFile("reader-fonts", ".epub", context.cacheDir)
+        ZipOutputStream(file.outputStream()).use { zip ->
+            fun put(path: String, body: String) {
+                zip.putNextEntry(ZipEntry(path)); zip.write(body.toByteArray()); zip.closeEntry()
+            }
+            put("META-INF/container.xml", """<container><rootfiles><rootfile full-path="OEBPS/buch.opf"
+                media-type="application/oebps-package+xml"/></rootfiles></container>""")
+            put("META-INF/encryption.xml", """<encryption xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+                <enc:EncryptedData><enc:EncryptionMethod Algorithm="http://www.idpf.org/2008/embedding"/>
+                  <enc:CipherData><enc:CipherReference URI="OEBPS/Fonts/Baskerville.otf"/></enc:CipherData>
+                </enc:EncryptedData></encryption>""")
+            put("OEBPS/buch.opf", """<package version="3.0"><metadata><dc:title>Schoen gesetzt</dc:title></metadata>
+                <manifest><item id="c1" href="text/eins.xhtml" media-type="application/xhtml+xml"/></manifest>
+                <spine><itemref idref="c1"/></spine></package>""")
+            put("OEBPS/text/eins.xhtml", "<html><body><p>Der Garten war still und der Brief lag auf dem Tisch.</p></body></html>")
+        }
+        try {
+            val document = DocumentStore(context).import(Uri.fromFile(file)) {}
+            assertTrue(document.chapters.first().text.contains("Der Garten war still"))
+            DocumentStore(context).remove(document.id)
+        } finally { file.delete() }
+    }
 }

@@ -31,6 +31,11 @@ class DocumentStore(private val context: Context) {
         /** How many pages without a single character are enough to give up, recognition included. */
         const val SCAN_PROBE_PAGES = 25
 
+        /** Said when a book is locked rather than broken. The difference matters to whoever goes looking. */
+        const val COPY_PROTECTED = "Dieses Buch ist kopiergeschützt. Der Reader kann es nicht öffnen, und daran " +
+            "lässt sich nichts ändern. Kopiergeschützte Bücher lassen sich nur in der App des Anbieters lesen, " +
+            "bei dem sie gekauft wurden."
+
         fun scanMessage(pagesChecked: Int): String =
             if (pagesChecked == 1) "Auf dieser Seite steht keine Schrift. Auch die Texterkennung hat nichts gefunden."
             else "In diesem PDF steht keine Schrift. Auch die Texterkennung hat auf den ersten $pagesChecked Seiten nichts gefunden. Wahrscheinlich sind es Fotos oder die Vorlage ist zu undeutlich."
@@ -159,6 +164,11 @@ class DocumentStore(private val context: Context) {
                     ?: error("Diese EPUB-Datei nennt keine Buchdatei. Sie ist wahrscheinlich beschädigt.")
                 val book = Epub.readPackage(read(packagePath) ?: error("Die Buchdatei fehlt in diesem EPUB."), packagePath)
                 require(book.spine.isNotEmpty()) { "Dieses EPUB nennt keine Lesereihenfolge und kann nicht vorgelesen werden." }
+
+                // Said before anything is read, and said truthfully. A copy-protected book used to be reported
+                // as damaged, which sends someone looking for a broken download that is not broken at all.
+                val encrypted = read("META-INF/encryption.xml")?.let { Epub.encryptedPaths(it) }.orEmpty()
+                require(book.spine.none { it in encrypted }) { COPY_PROTECTED }
                 require(book.spine.size <= MAX_PAGES) { "Dieses EPUB hat ${book.spine.size} Teile. Der Reader schafft bis zu $MAX_PAGES." }
 
                 val contents = book.contentsPath?.let { path -> read(path)?.let { Epub.tableOfContents(it, path) } }
@@ -180,7 +190,11 @@ class DocumentStore(private val context: Context) {
                         blocks += titleFor[path + "#" + piece.first.orEmpty()] to text
                     }
                 }
-                require(blocks.any { it.second.isNotBlank() }) { "In diesem EPUB steht kein Text, den der Reader vorlesen könnte." }
+                // No text at all plus any encryption is copy protection too, whatever the file says about it.
+                require(blocks.any { it.second.isNotBlank() }) {
+                    if (encrypted.isNotEmpty() || zip.getEntry("META-INF/rights.xml") != null) COPY_PROTECTED
+                    else "In diesem EPUB steht kein Text, den der Reader vorlesen könnte."
+                }
 
                 // A stated table of contents beats any grouping. Without one, the parts are grouped by length the
                 // way pages are, and a single huge part is cut down to something a listener can move around in.
