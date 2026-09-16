@@ -89,7 +89,7 @@ Every push runs the unit tests, lint and a debug build, plus the PDF, EPUB and l
 - Bookmarks map to page starts. Several bookmarks on one page collapse into one entry. **Tables come out row by row**, which is how text extraction sees them, so a page with a table next to a paragraph reads the two interleaved. Footnotes and multi-column layouts have the same risk, although no genuinely two-column page turned up in 180 pages across five real books, so the table case is the one that has actually been observed.
 - One listening position per document. No search, no user bookmarks.
 - The spoken chapter announcement cannot be switched off.
-- The book keeps reading when the app is swiped out of the recents list. The playback service prepares the next section itself, reading the text from the same store and needing nothing handed to it. Chapter changes by media key still go through the app while it is there.
+- The book keeps reading when the app is swiped out of the recents list, and the headset buttons for the next section keep working. The playback service prepares the next section itself, reading the text from the same store and needing nothing handed to it.
 - The app times every voice while it prepares a section and says so under the voice list when one cannot keep up with listening. A local neural voice sounds better and needs about thirty times longer to produce than a stock one, which is invisible until a book starts stopping to catch up.
 - Changing the voice restarts the chapter from the beginning.
 - Generated audio is trimmed at 500 MB, least recently heard first, and re-synthesized if needed.

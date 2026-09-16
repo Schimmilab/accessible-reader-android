@@ -8,6 +8,12 @@ import android.util.Log
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import android.content.ComponentName
+import androidx.test.platform.app.InstrumentationRegistry
+import java.util.concurrent.TimeUnit
+import de.schimmilab.accessiblereader.playback.ReaderPlaybackService
 import de.schimmilab.accessiblereader.data.DocumentStore
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -96,5 +102,48 @@ class KeepsReadingWithoutTheAppTest {
         }
         Log.i("ReaderAlone", "Nach dem Ende der App steht der Speicher bei Abschnitt ${reached + 1}")
         assertEquals("The book has to reach the second section without the app", 1, reached)
+    }
+
+    /**
+     * The headset button for the next section has to work when the app is gone too. Until now it asked the app,
+     * which is not there, so the buttons went nowhere on a book that was otherwise still reading.
+     */
+    @Test fun theHeadsetButtonStillChangesSectionWithoutTheApp() {
+        val file = twoSectionPdf()
+        val document = try { runBlocking { DocumentStore(context).importPdf(Uri.fromFile(file)) {} } }
+            finally { file.delete() }
+        assertEquals(2, document.chapters.size)
+
+        compose.activityRule.scenario.onActivity { model = ViewModelProvider(it)[ReaderViewModel::class.java] }
+        compose.waitUntil(60_000) { model.state.value.connected && model.state.value.voices.isNotEmpty() }
+        assumeTrue(model.state.value.voices.isNotEmpty())
+
+        val prefs = context.getSharedPreferences("reader", Context.MODE_PRIVATE)
+        prefs.edit().remove("${document.id}.chapter").remove("${document.id}.item")
+            .remove("${document.id}.offset").remove("${document.id}.finished").apply()
+
+        compose.runOnIdle { model.clearCache(); model.open(document); model.chapter(0); model.play() }
+        compose.waitUntil(300_000) { model.state.value.playing || model.state.value.error != null }
+        assertNull(model.state.value.error)
+        compose.activityRule.scenario.close()
+
+        // A headset speaks to the session, not to the app. This is the same route.
+        val controller = MediaController.Builder(context,
+            SessionToken(context, ComponentName(context, ReaderPlaybackService::class.java))).buildAsync()
+        val remote = controller.get(30, TimeUnit.SECONDS)
+        try {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { remote.seekToNext() }
+            val deadline = System.currentTimeMillis() + 180_000
+            var reached = -1
+            while (System.currentTimeMillis() < deadline) {
+                reached = prefs.getInt("${document.id}.chapter", -1)
+                if (reached >= 1) break
+                Thread.sleep(1000)
+            }
+            Log.i("ReaderAlone", "Nach dem Knopfdruck ohne App steht der Speicher bei Abschnitt ${reached + 1}")
+            assertEquals("The button has to reach the second section without the app", 1, reached)
+        } finally {
+            InstrumentationRegistry.getInstrumentation().runOnMainSync { remote.release() }
+        }
     }
 }

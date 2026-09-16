@@ -101,6 +101,15 @@ class ReaderCoreTest {
         // A stale saved chapter from an older import must not produce a label beyond the document.
         assertEquals("Der Garten, 12 Abschnitte, zuletzt bei Abschnitt 12 von 12.", libraryLabel(entry, 99, started = true))
     }
+    @Test fun aCancellationIsAnIllegalStateException() {
+        // Written down as a runnable fact because this has bitten twice. A timeout arrives as a
+        // CancellationException, and a CancellationException arrives as an IllegalStateException, so a catch
+        // that means "something went wrong" silently swallows or retries the user pressing cancel.
+        assertTrue("catch (IllegalStateException) also catches every cancellation",
+            kotlinx.coroutines.CancellationException() is IllegalStateException)
+        assertTrue("and a timeout is one of those cancellations",
+            java.util.concurrent.CancellationException() is IllegalStateException)
+    }
     @Test fun theSpeedMovesInStepsSomeoneCanAimAt() {
         // A quarter step was unusable: from normal the next one down was noticeably slow and the next one up
         // noticeably fast, with nothing in between.

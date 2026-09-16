@@ -56,13 +56,21 @@ class ReaderPlaybackService : MediaSessionService() {
      * to be handed across.
      */
     private fun continueWithoutTheApp(player: Player, preferences: SharedPreferences) {
-        if (continuation?.isActive == true) return
         if (player.playbackState != Player.STATE_ENDED || !player.playWhenReady) return
         if (preferences.getBoolean(KEY_PREPARING, false)) return
         if (preferences.getBoolean(KEY_UI_ALIVE, false)) return
+        prepareSection(player, preferences, +1)
+    }
+
+    /**
+     * Prepares the section [delta] away from the one playing. Used when the book runs out and when a headset
+     * button asks for the next or previous section while the app is gone.
+     */
+    private fun prepareSection(player: Player, preferences: SharedPreferences, delta: Int) {
+        if (continuation?.isActive == true) return
         val extra = player.currentMediaItem?.mediaMetadata?.extras ?: return
         val documentId = extra.getString("document") ?: return
-        val next = extra.getInt("chapter") + 1
+        val next = extra.getInt("chapter") + delta
         val voice = extra.getString("voice").orEmpty()
         if (voice.isBlank()) return
         continuation = scope.launch {
@@ -91,7 +99,19 @@ class ReaderPlaybackService : MediaSessionService() {
             setHandleAudioBecomingNoisy(true)
             setWakeMode(C.WAKE_MODE_LOCAL)
         }
-        val player = ChapterPlayer(exo) { command -> session?.broadcastCustomCommand(SessionCommand(command, Bundle.EMPTY), Bundle.EMPTY) }
+        // A headset asks for the next section through this. While the app is there it answers, because it also
+        // has to move its own screen along. Once it is gone the service does it, otherwise the buttons would go
+        // nowhere on a book that is otherwise still reading.
+        var chapters: ChapterPlayer? = null
+        val preferencesForButtons = getSharedPreferences("reader", MODE_PRIVATE)
+        val player = ChapterPlayer(exo) { command ->
+            if (preferencesForButtons.getBoolean(KEY_UI_ALIVE, false)) {
+                session?.broadcastCustomCommand(SessionCommand(command, Bundle.EMPTY), Bundle.EMPTY)
+            } else {
+                chapters?.let { prepareSection(it, preferencesForButtons, if (command == COMMAND_NEXT_CHAPTER) 1 else -1) }
+            }
+        }
+        chapters = player
         // Progress lives with playback, including while the activity is gone.
         val preferences = getSharedPreferences("reader", MODE_PRIVATE)
         val handler = android.os.Handler(mainLooper)

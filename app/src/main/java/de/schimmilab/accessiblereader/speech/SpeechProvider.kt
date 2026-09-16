@@ -147,31 +147,58 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
                 return@withLock SpeechAudio(file, duration, fromCache = true)
             }
         }
-        val temp = File(cache, "$key.part.wav")
-        val id = UUID.randomUUID().toString()
-        val completion = CompletableDeferred<Unit>()
-        try {
-            if (voice != null) check(tts.setVoice(voice) == TextToSpeech.SUCCESS) { "Die gewählte Stimme ist nicht verfügbar." }
-            else check(tts.setLanguage(Locale.GERMAN) >= TextToSpeech.LANG_AVAILABLE) { "Diese Sprachausgabe kann kein Deutsch." }
-            tts.setSpeechRate(1f)
-            pending[id] = completion
-            check(tts.synthesizeToFile(text, Bundle(), temp, id) == TextToSpeech.SUCCESS) { "Sprachausgabe konnte nicht vorbereitet werden." }
-            // A neural voice can need as long as the audio itself, and longer while it is also speaking an
-            // announcement. A flat limit turned that into silence, so the budget follows the length of the text.
-            // withTimeoutOrNull on purpose: withTimeout throws a CancellationException, which every caller has to
-            // treat as "the user cancelled", and a swallowed timeout leaves a listener waiting forever.
-            val budget = synthesisBudgetMs(text.length)
-            withTimeoutOrNull(budget) { completion.await() }
-                ?: error("Diese Stimme hat für diesen Abschnitt länger als ${budget / 1000} Sekunden gebraucht. " +
-                    "Bitte eine andere Stimme wählen oder es noch einmal versuchen.")
-            val duration = withContext(Dispatchers.IO) { duration(temp) }
-            check(duration > 0 && temp.renameTo(file)) { "Die erzeugte Audiodatei ist unvollständig." }
-            SpeechAudio(file, duration)
-        } finally {
-            pending.remove(id)
-            if (!completion.isCompleted) tts.stop()
-            temp.delete()
+        // Twice at most. An engine sometimes answers a request with an empty file right after another client of
+        // it has shut down, which is exactly what happens when the app is swiped away and the playback service
+        // takes over mid-book. Seen in a real run; the second attempt then produced the audio. Losing a section
+        // over a moment of bad timing is not a trade worth making.
+        var lastFailure: IllegalStateException? = null
+        repeat(2) { attempt ->
+            val id = UUID.randomUUID().toString()
+            // The name carries the attempt, not just the text: the app and the service each have their own
+            // provider writing into this directory.
+            val temp = File(cache, "$key.$id.part.wav")
+            val completion = CompletableDeferred<Unit>()
+            try {
+                if (voice != null) check(tts.setVoice(voice) == TextToSpeech.SUCCESS) { "Die gewählte Stimme ist nicht verfügbar." }
+                else check(tts.setLanguage(Locale.GERMAN) >= TextToSpeech.LANG_AVAILABLE) { "Diese Sprachausgabe kann kein Deutsch." }
+                tts.setSpeechRate(1f)
+                pending[id] = completion
+                check(tts.synthesizeToFile(text, Bundle(), temp, id) == TextToSpeech.SUCCESS) { "Sprachausgabe konnte nicht vorbereitet werden." }
+                // A neural voice can need as long as the audio itself, and longer while it is also speaking an
+                // announcement. A flat limit turned that into silence, so the budget follows the length of the
+                // text. withTimeoutOrNull on purpose: withTimeout throws a CancellationException, which every
+                // caller has to treat as "the user cancelled", and a swallowed timeout leaves a listener waiting.
+                val budget = synthesisBudgetMs(text.length)
+                withTimeoutOrNull(budget) { completion.await() }
+                    ?: error("Diese Stimme hat für diesen Abschnitt länger als ${budget / 1000} Sekunden gebraucht. " +
+                        "Bitte eine andere Stimme wählen oder es noch einmal versuchen.")
+                val duration = withContext(Dispatchers.IO) { duration(temp) }
+                // Separated so a failure says which half went wrong. Calling a perfectly produced file
+                // incomplete because it could not be renamed sent one investigation down the wrong road.
+                check(duration > 0) { "Die Sprachausgabe hat keine hörbare Datei erzeugt (${temp.length()} Bytes)." }
+                // A destination already there was written by the other provider meanwhile, under the same key
+                // and from the same text, so it is exactly as good as this one.
+                if (!temp.renameTo(file)) {
+                    check(file.isFile && file.length() > 44) { "Die erzeugte Audiodatei konnte nicht abgelegt werden." }
+                    temp.delete()
+                    return@withLock SpeechAudio(file, duration(file), fromCache = true)
+                }
+                return@withLock SpeechAudio(file, duration)
+            } catch (e: CancellationException) {
+                // Caught before the line below, because kotlinx's CancellationException IS an
+                // IllegalStateException. Without this, cancelling a chapter would be retried instead of
+                // obeyed, and a listener who pressed for another section would wait through the old one.
+                throw e
+            } catch (e: IllegalStateException) {
+                lastFailure = e
+                if (attempt == 0) android.util.Log.i("ReaderSynth", "Zweiter Versuch: ${e.message}")
+            } finally {
+                pending.remove(id)
+                if (!completion.isCompleted) tts.stop()
+                temp.delete()
+            }
         }
+        throw lastFailure ?: IllegalStateException("Audio konnte nicht erzeugt werden.")
     }
 
     /** Speaks short feedback. Works while a chapter is being prepared; [voiceId] keeps it in the book voice. */
@@ -233,7 +260,10 @@ class AndroidSpeechProvider(context: Context, private val enginePackage: String 
     override fun trimCache(budgetBytes: Long) = trimCache(budgetBytes, budgetBytes * 4 / 5)
 
     fun trimCache(budgetBytes: Long, keepBytes: Long) {
-        val files = cache.listFiles().orEmpty().filter { it.isFile }
+        // Half written files are left alone. The app and the playback service each have a provider writing into
+        // this directory, and deleting the other one's work in progress produces audio that is reported as
+        // incomplete for no reason anyone could act on.
+        val files = cache.listFiles().orEmpty().filter { it.isFile && !it.name.endsWith(".part.wav") }
         var size = files.sumOf { it.length() }
         if (size <= budgetBytes) return
         files.sortedBy { it.lastModified() }.forEach { file ->
