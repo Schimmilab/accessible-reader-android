@@ -257,7 +257,9 @@ class DocumentStore(private val context: Context) {
                 require(pdf.currentAccessPermission.canExtractContent() || pdf.currentAccessPermission.canExtractForAccessibility()) {
                     "Dieses PDF erlaubt keinen Textzugriff. Bitte verwende eine freigegebene Kopie."
                 }
-                val stripper = PDFTextStripper().apply { sortByPosition = true }
+                // Collects the geometry of every line while it extracts, so a two-column page can be recognised
+                // without reading the page twice. The text it produces is the stripper's own, unchanged.
+                val stripper = ColumnAwareStripper().apply { sortByPosition = true }
                 var characters = 0
                 var recognized = 0
                 // Opened only when a page turns out to be a scan, because it costs memory and a model.
@@ -267,7 +269,14 @@ class DocumentStore(private val context: Context) {
                     progress("Lese Seite $page von ${pdf.numberOfPages} …")
                     stripper.startPage = page
                     stripper.endPage = page
-                    var text = TextChunks.clean(stripper.getText(pdf))
+                    stripper.lines.clear()
+                    val across = stripper.getText(pdf)
+                    // A page that really has columns is read one column at a time. Text extraction sees a page as
+                    // lines across its full width, which splices the right column into the sentences of the left.
+                    val box = pdf.getPage(page - 1).mediaBox
+                    val columns = PageColumns.regions(stripper.lines, box.width, box.height)
+                    var text = TextChunks.clean(
+                        if (columns.isEmpty()) across else readByColumn(pdf, page, columns) ?: across)
                     if (text.isBlank()) {
                         progress("Seite $page von ${pdf.numberOfPages} ist ein Bild, Texterkennung läuft …")
                         if (ocr == null) ocr = runCatching { PageOcr(temp) }.getOrNull()
