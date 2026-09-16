@@ -59,6 +59,8 @@ data class ReaderState(
     val library: List<LibraryItem> = emptyList(), val showLibrary: Boolean = false, val pendingRemoval: String? = null,
     /** Places in the current document someone asked to come back to, newest first. */
     val bookmarks: List<Bookmark> = emptyList(), val showBookmarks: Boolean = false,
+    /** The sleep timer, and how long it still has to run. */
+    val sleep: SleepOption = SleepOption.OFF, val sleepRemainingMs: Long = 0, val showSleep: Boolean = false,
 )
 
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
@@ -115,6 +117,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             refreshVoices()
             while (isActive) {
                 syncPlayer()
+                syncSleep()
                 delay(500)
             }
         }
@@ -132,9 +135,12 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 positionMs = AudioTimeline.absolute(durations, p.currentMediaItemIndex, p.currentPosition), durationMs = durations.sum()) }
             // A finished chapter continues with the next one; the last chapter stays at its end and offers a restart.
             val s = state.value
-            if (p.playbackState == Player.STATE_ENDED && p.playWhenReady && !s.preparing && !s.busy && chapter + 1 in s.document.chapters.indices) {
-                chapter(chapter + 1, announce = false)
-                play(quiet = true)
+            if (p.playbackState == Player.STATE_ENDED && p.playWhenReady && !s.preparing && !s.busy) {
+                if (prefs.getBoolean(ReaderPlaybackService.KEY_SLEEP_AT_SECTION_END, false)) stopAtSectionEnd()
+                else if (chapter + 1 in s.document.chapters.indices) {
+                    chapter(chapter + 1, announce = false)
+                    play(quiet = true)
+                }
             }
         } else mutable.update { it.copy(playing = false, playbackRequested = false) }
     }
@@ -210,6 +216,14 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
 
     fun togglePlayback() { if (player?.wantsPlayback() == true) pause() else play() }
     fun pause() { player?.pause(); mutable.update { it.copy(playing = false, playbackRequested = false, status = "Pausiert.") } }
+
+    /** Ends the book where the section ends, when that was what the listener asked for. */
+    private fun stopAtSectionEnd() {
+        prefs.edit().putBoolean(ReaderPlaybackService.KEY_SLEEP_AT_SECTION_END, false).apply()
+        player?.pause()
+        mutable.update { it.copy(playing = false, playbackRequested = false, sleep = SleepOption.OFF,
+            status = "Abschnitt zu Ende. Der Einschlaftimer hat den Reader angehalten.") }
+    }
     /** [quiet] skips status updates so an automatic chapter change causes no TalkBack announcement. */
     fun play(quiet: Boolean = false) {
         val s = state.value
@@ -461,6 +475,47 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }.getOrDefault(emptyList())
 
+    fun sleepDialog(open: Boolean) = mutable.update { it.copy(showSleep = open) }
+
+    /**
+     * Sets the sleep timer. The timer itself is kept by the playback service, which is the only part of this app
+     * that is still there once the phone has been put down and the app swiped away.
+     */
+    fun sleepTimer(option: SleepOption) {
+        val editor = prefs.edit()
+        when {
+            option == SleepOption.OFF -> editor
+                .remove(ReaderPlaybackService.KEY_SLEEP_UNTIL)
+                .putBoolean(ReaderPlaybackService.KEY_SLEEP_AT_SECTION_END, false)
+            option == SleepOption.END_OF_SECTION -> editor
+                .remove(ReaderPlaybackService.KEY_SLEEP_UNTIL)
+                .putBoolean(ReaderPlaybackService.KEY_SLEEP_AT_SECTION_END, true)
+            else -> editor
+                .putLong(ReaderPlaybackService.KEY_SLEEP_UNTIL,
+                    System.currentTimeMillis() + option.minutes * 60_000L)
+                .putBoolean(ReaderPlaybackService.KEY_SLEEP_AT_SECTION_END, false)
+        }
+        editor.apply()
+        mutable.update { it.copy(sleep = option, showSleep = false,
+            sleepRemainingMs = if (option.isTimed) option.minutes * 60_000L else 0,
+            status = sleepAnnouncement(option)) }
+    }
+
+    /** Reads the timer back from where the service keeps it, so the screen agrees with what is really set. */
+    private fun syncSleep() {
+        val until = prefs.getLong(ReaderPlaybackService.KEY_SLEEP_UNTIL, 0L)
+        val atSectionEnd = prefs.getBoolean(ReaderPlaybackService.KEY_SLEEP_AT_SECTION_END, false)
+        val remaining = if (until > 0) until - System.currentTimeMillis() else 0L
+        val option = when {
+            until > 0 && remaining > 0 -> state.value.sleep.takeIf { it.isTimed } ?: SleepOption.AFTER_30
+            atSectionEnd -> SleepOption.END_OF_SECTION
+            else -> SleepOption.OFF
+        }
+        if (option != state.value.sleep || kotlin.math.abs(remaining - state.value.sleepRemainingMs) > 900) {
+            mutable.update { it.copy(sleep = option, sleepRemainingMs = maxOf(0, remaining)) }
+        }
+    }
+
     fun library(open: Boolean) {
         mutable.update { it.copy(showLibrary = open) }
         if (open) refreshLibrary()
@@ -649,6 +704,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             ReaderCommand.Position -> announcePosition()
             ReaderCommand.Mark -> mark()
             ReaderCommand.Bookmarks -> bookmarks(true)
+            ReaderCommand.Sleep -> sleepDialog(true)
             is ReaderCommand.Seek -> seek(command.seconds)
             is ReaderCommand.GoTo -> if (command.chapter in 1..state.value.document.chapters.size) chapter(command.chapter - 1) else showError("Diesen Abschnitt gibt es nicht.")
             null -> showError("Befehl nicht erkannt: $text. Beispiele: Vorlesen, Pause, 30 Sekunden zurück, nächstes Kapitel.")

@@ -160,6 +160,15 @@ class AccessibilityRulesTest {
         compose.runOnUiThread { model.state.value.bookmarks.forEach { model.removeBookmark(it) } }
     }
 
+    @Test fun theSleepTimerFollowsTheRules() {
+        compose.onNodeWithText("Leseprobe").performClick()
+        compose.waitForIdle()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Einschlaftimer"))
+        compose.onNodeWithText("Einschlaftimer").performClick()
+        compose.waitForIdle()
+        checkScreen("Einschlaftimer")
+    }
+
     /** The message that appears when something went wrong is the last thing a listener has left to press. */
     @Test fun theErrorMessageFollowsTheRules() {
         val model = model()

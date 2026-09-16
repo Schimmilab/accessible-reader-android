@@ -20,6 +20,9 @@ import de.schimmilab.accessiblereader.ReaderState
 import de.schimmilab.accessiblereader.ReaderViewModel
 import de.schimmilab.accessiblereader.core.NO_BOOKMARKS
 import de.schimmilab.accessiblereader.core.OnlineVoicePolicy
+import de.schimmilab.accessiblereader.core.SleepOption
+import de.schimmilab.accessiblereader.core.sleepButtonLabel
+import de.schimmilab.accessiblereader.core.sleepLabel
 import de.schimmilab.accessiblereader.core.bookmarksHeading
 import de.schimmilab.accessiblereader.core.SPEED_MAX
 import de.schimmilab.accessiblereader.core.SPEED_MIN
@@ -132,6 +135,12 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                             Text(bookmarksHeading(s.bookmarks.size))
                         }
                     }
+                    // The remaining time is on the button itself: asking how long is left must not mean opening
+                    // a dialog and listening through it.
+                    OutlinedButton(onClick = { model.sleepDialog(true) }, enabled = !s.listening,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                        Text(sleepButtonLabel(s.sleep, s.sleepRemainingMs))
+                    }
                 }
             }
             item {
@@ -184,6 +193,23 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                 }
             }
         }, confirmButton = { TextButton(onClick = { model.contents(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
+    if (s.showSleep) AlertDialog(onDismissRequest = { model.sleepDialog(false) },
+        title = { Text("Einschlaftimer") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Der Reader wird am Ende leiser und hört dann auf. Die Stelle bleibt gespeichert.",
+                    style = MaterialTheme.typography.bodyMedium)
+                SleepOption.entries.forEach { option ->
+                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                        .selectable(selected = s.sleep == option, enabled = !s.busy, role = Role.RadioButton,
+                            onClick = { model.sleepTimer(option) }),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = s.sleep == option, onClick = null)
+                        Text(sleepLabel(option), Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { model.sleepDialog(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
     if (s.showBookmarks) AlertDialog(onDismissRequest = { model.bookmarks(false) },
         title = { Text(bookmarksHeading(s.bookmarks.size)) },
         text = {

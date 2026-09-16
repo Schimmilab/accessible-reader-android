@@ -250,6 +250,7 @@ sealed interface ReaderCommand {
     data object Position : ReaderCommand
     data object Mark : ReaderCommand
     data object Bookmarks : ReaderCommand
+    data object Sleep : ReaderCommand
     data class Seek(val seconds: Int) : ReaderCommand
     data class GoTo(val chapter: Int) : ReaderCommand
 }
@@ -269,6 +270,7 @@ object CommandParser {
             "position", "wo bin ich", "aktuelle position" -> ReaderCommand.Position
             "stelle merken", "lesezeichen setzen", "merk dir die stelle", "merken" -> ReaderCommand.Mark
             "lesezeichen", "meine lesezeichen", "lesezeichen anzeigen", "lesezeichen offnen" -> ReaderCommand.Bookmarks
+            "einschlaftimer", "timer", "einschlafen", "schlafen", "einschlaftimer stellen" -> ReaderCommand.Sleep
             else -> {
                 Regex("(?:kapitel|gehe zu kapitel) (\\d+)").matchEntire(s)?.let {
                     return it.groupValues[1].toIntOrNull()?.takeIf { n -> n > 0 }?.let(ReaderCommand::GoTo)

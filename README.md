@@ -33,6 +33,7 @@ So the goal here is narrow and specific: an app whose every function is reachabl
 - **Any installed speech engine** can be selected, including licensed engines that report no individual voices. Each voice has a *Probe* button speaking one identical sample with numbers, a date and abbreviations, so voices can be compared by ear.
 - **A self diagnosis** that probes every installed engine separately and reports what each can do, as shareable plain text. Built because the target device could not be inspected from here.
 - **The listening position survives** pausing, leaving the app and closing it.
+- **A sleep timer**: after 15, 30, 45 or 60 minutes, or at the end of the current section. The sound is faded over the last twenty seconds rather than cut off, and the place is kept. It runs in the playback service, so it still stops the book when the app has been swiped away.
 - **Bookmarks**, up to twenty per book: *Stelle merken* keeps the place being listened to and says so out loud, and the list names each one by section and minute. Reachable by voice as well.
 - **Voice commands**, recognised on the device, started only by a button press. Never a silent fallback to cloud recognition.
 - **Speed** from 0.5 to 2.0, remembered.

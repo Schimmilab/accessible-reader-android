@@ -19,6 +19,7 @@ import android.content.SharedPreferences
 import de.schimmilab.accessiblereader.MainActivity
 import de.schimmilab.accessiblereader.core.AudioTimeline
 import de.schimmilab.accessiblereader.core.VoiceCast
+import de.schimmilab.accessiblereader.core.sleepVolume
 import de.schimmilab.accessiblereader.data.DocumentStore
 import de.schimmilab.accessiblereader.speech.AndroidSpeechProvider
 import kotlinx.coroutines.CancellationException
@@ -46,6 +47,17 @@ class ReaderPlaybackService : MediaSessionService() {
          * activity, and the book stopped wherever the listener happened to be.
          */
         const val KEY_UI_ALIVE = "uiAlive"
+
+        /**
+         * When the sleep timer runs out, as a wall-clock time, or absent when no timer is set.
+         *
+         * The timer lives here rather than in the app for the same reason the preparation of the next section
+         * does: someone who sets a timer and puts the phone down is exactly the case where the app goes away and
+         * the book would otherwise read all night.
+         */
+        const val KEY_SLEEP_UNTIL = "sleep.until"
+        /** Set instead of a time when the reader is to stop where the current section ends. */
+        const val KEY_SLEEP_AT_SECTION_END = "sleep.sectionEnd"
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -59,6 +71,13 @@ class ReaderPlaybackService : MediaSessionService() {
     private fun continueWithoutTheApp(player: Player, preferences: SharedPreferences) {
         if (player.playbackState != Player.STATE_ENDED || !player.playWhenReady) return
         if (preferences.getBoolean(KEY_PREPARING, false)) return
+        // The listener asked to stop where this section ends. Pausing rather than stopping keeps the position,
+        // so the book carries on from here tomorrow.
+        if (preferences.getBoolean(KEY_SLEEP_AT_SECTION_END, false)) {
+            preferences.edit().putBoolean(KEY_SLEEP_AT_SECTION_END, false).apply()
+            player.pause()
+            return
+        }
         if (preferences.getBoolean(KEY_UI_ALIVE, false)) return
         prepareSection(player, preferences, +1)
     }
@@ -95,6 +114,30 @@ class ReaderPlaybackService : MediaSessionService() {
             }
         }
     }
+    /**
+     * Fades the sound out over the last seconds of the sleep timer and pauses when it runs out.
+     *
+     * Runs once a second alongside the position, on whichever player is actually making sound, so it works the
+     * same whether the app is there or not. Without a timer it makes sure the volume is back up: a listener left
+     * with a silent reader and no idea why would have no way to find out.
+     */
+    private fun sleep(player: Player, preferences: SharedPreferences) {
+        val until = preferences.getLong(KEY_SLEEP_UNTIL, 0L)
+        if (until <= 0L) {
+            if (player.volume < 1f) player.volume = 1f
+            return
+        }
+        val remaining = until - System.currentTimeMillis()
+        if (remaining <= 0L) {
+            preferences.edit().remove(KEY_SLEEP_UNTIL).apply()
+            player.pause()
+            player.volume = 1f
+            return
+        }
+        val wanted = sleepVolume(remaining)
+        if (kotlin.math.abs(player.volume - wanted) > 0.01f) player.volume = wanted
+    }
+
     private var session: MediaSession? = null
     override fun onCreate() {
         super.onCreate()
@@ -133,6 +176,7 @@ class ReaderPlaybackService : MediaSessionService() {
                             player.playbackState == Player.STATE_ENDED && !preferences.getBoolean(KEY_PREPARING, false))
                         .apply()
                 }
+                sleep(player, preferences)
                 handler.postDelayed(this, 1000)
             }
         }

@@ -131,6 +131,18 @@ Du kannst pausieren, die App schließen und später weiterhören. Beim nächsten
 
 Wenn du die Stimme wechselst, geht die Sekunde verloren, bei der du warst, denn in einer anderen Stimme liegt an derselben Sekunde ein anderes Wort. Der Reader beginnt deshalb das gerade laufende Stück noch einmal von vorn. Du hörst höchstens etwa eine Minute zweimal, nicht den ganzen Abschnitt.
 
+## Einschlafen
+
+Unter den Lesezeichen steht die Taste **Einschlaftimer**. Sie sagt dir immer, was gerade eingestellt ist: „Einschlaftimer" heißt aus, sonst zum Beispiel „Einschlaftimer, noch 24 Minuten". Du musst also nichts öffnen, um zu hören, wie lange noch gelesen wird.
+
+Zur Auswahl stehen: aus, nach 15, 30, 45 oder 60 Minuten, oder am Ende des laufenden Abschnitts.
+
+Zwanzig Sekunden vor Schluss wird der Reader leiser und hört dann auf — er bricht nicht mitten im Satz ab, das würde eher aufwecken als einschlafen lassen. Die Stelle bleibt gespeichert, du hörst am nächsten Tag genau dort weiter.
+
+Der Timer läuft auch dann noch, wenn du die App weggewischt hast. Er gehört nämlich zur Wiedergabe, nicht zum Bildschirm.
+
+Per Sprache: „Einschlaftimer".
+
 ## Eine Stelle merken
 
 Unter „Wo bin ich?" stehen zwei Tasten nebeneinander.
