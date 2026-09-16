@@ -26,11 +26,12 @@ import de.schimmilab.accessiblereader.core.positionLabel
 import de.schimmilab.accessiblereader.core.voicesHeading
 import java.util.Locale
 
-private val LightColors = lightColorScheme(primary = Color(0xFF075E52), onPrimary = Color.White,
+// Not private: ContrastTest reads both schemes and checks every pair the app really draws.
+internal val LightColors = lightColorScheme(primary = Color(0xFF06564B), onPrimary = Color.White,
     background = Color(0xFFF7F5EF), surface = Color(0xFFF7F5EF), surfaceContainer = Color(0xFFEAECE3),
     onSurface = Color(0xFF202720), onSurfaceVariant = Color(0xFF455047), outline = Color(0xFF727970),
     primaryContainer = Color(0xFFD2E9DC), outlineVariant = Color(0xFFBCC8BD))
-private val DarkColors = darkColorScheme(primary = Color(0xFF8FD4BE), onPrimary = Color(0xFF00382F),
+internal val DarkColors = darkColorScheme(primary = Color(0xFF8FD4BE), onPrimary = Color(0xFF00382F),
     background = Color(0xFF141B17), surface = Color(0xFF141B17), surfaceContainer = Color(0xFF263029),
     onSurface = Color(0xFFF1F2E8), onSurfaceVariant = Color(0xFFC3CFC5),
     primaryContainer = Color(0xFF355146), outlineVariant = Color(0xFF63756B))

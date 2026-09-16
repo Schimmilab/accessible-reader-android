@@ -111,7 +111,9 @@ It walks every semantic root, so with a dialog open the screen behind it is meas
 
 It was written after noticing that this document claimed for weeks that the Android Accessibility Test Framework was running here. No such code existed. The framework's Compose binding is not public in the version this project uses, so the rules this project itself wrote down are checked directly instead. The first run found five controls of 40 density pixels, one of them the button that closes the settings.
 
-What it does not cover: contrast, focus order, and anything that only shows up under a real screen reader. Those still need the manual walk described above.
+`ContrastTest` measures the colours. Every pair of text and background the app draws has to reach 7 to 1, the strictest level the guidelines name, and the border of an outlined button 3 to 1, in the light scheme and in the dark one. Blind is not one thing: the same app is read by people with very little sight, and by everyone else in sunlight. The first run found the label of the two 30-second buttons at 6.44 to 1 on the card, so the green of this app was darkened a step. What the test cannot do is look at the screen; it reads the colours the theme defines, so text drawn on the wrong background would still pass.
+
+What is still not covered: focus order, and anything that only shows up under a real screen reader. Those still need the manual walk described above.
 
 ## Listening test for voices
 
