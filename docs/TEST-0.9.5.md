@@ -37,7 +37,7 @@ All thirteen text buttons now carry a minimum of 48. Nothing else the rules cove
 
 | Run | Result |
 | --- | --- |
-| `AccessibilityRulesTest` | 4 of 4, and two of them failed before the change |
+| `AccessibilityRulesTest` | 4 of 4, and two of them failed before the change; extended to 8 of 8 afterwards |
 | Unit tests (`ReaderCoreTest`) | 29 of 29 |
 | `ReaderUiTest` | 3 of 3 |
 | `LibraryUiTest` | passed |
@@ -48,5 +48,5 @@ The check now runs on every push, alongside the import tests. It needs no speech
 ## What stays open
 
 - Contrast is not checked, nor focus order, nor anything that only appears under a real screen reader. Those still need the manual walk in `docs/TESTING.md`.
-- The dialogs for the library, for removing a document and for the error message are not covered yet; the three screens that were checked are the ones a listener is in most of the time.
+- ~~The dialogs for the library, for removing a document and for the error message are not covered yet.~~ Added right after this protocol was written: the library, the question before a document is removed, the command list and the error message are checked too, eight tests in all. None of the four held a violation, so nothing in the app changed for it.
 - Still no testing across manufacturers.

@@ -105,7 +105,9 @@ At least one test is created for every core function:
 - Errors appear as an audible message and receive the focus.
 - No core action is reachable only by a gesture.
 
-`AccessibilityRulesTest` checks the rules above against the real screen on every push, on the main screen, the contents and the settings: every control a screen reader can reach carries a name, measures at least 48 by 48 density pixels, and no two controls share a name. It also insists on headings, because a screen reader moves by them.
+`AccessibilityRulesTest` checks the rules above against the real screen on every push, on the main screen, the contents, the settings, the library, the question before a document is removed, the command list and the error message: every control a screen reader can reach carries a name, measures at least 48 by 48 density pixels, and no two controls share a name. It also insists on headings, because a screen reader moves by them. The library and the removal question need a document, so the test imports a one-page PDF and deletes it again.
+
+It walks every semantic root, so with a dialog open the screen behind it is measured as well. That makes it stricter than what a screen reader reaches, never weaker.
 
 It was written after noticing that this document claimed for weeks that the Android Accessibility Test Framework was running here. No such code existed. The framework's Compose binding is not public in the version this project uses, so the rules this project itself wrote down are checked directly instead. The first run found five controls of 40 density pixels, one of them the button that closes the settings.
 

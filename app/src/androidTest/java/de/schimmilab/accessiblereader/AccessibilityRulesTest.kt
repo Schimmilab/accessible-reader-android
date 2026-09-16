@@ -5,10 +5,19 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.unit.dp
+import android.content.Context
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.net.Uri
 import android.util.Log
+import androidx.lifecycle.ViewModelProvider
+import androidx.test.core.app.ApplicationProvider
+import de.schimmilab.accessiblereader.data.DocumentStore
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.Assert.*
+import java.io.File
 
 /**
  * The rules this project wrote down after learning them the hard way, checked against the real screen instead of
@@ -22,6 +31,32 @@ import org.junit.Assert.*
 class AccessibilityRulesTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
+    private val context = ApplicationProvider.getApplicationContext<Context>()
+
+    private fun model(): ReaderViewModel {
+        lateinit var model: ReaderViewModel
+        compose.activityRule.scenario.onActivity { model = ViewModelProvider(it)[ReaderViewModel::class.java] }
+        return model
+    }
+
+    /** A one-page PDF, so the library holds a real entry with a real title instead of being empty. */
+    private fun importedDocument(): ReaderDocumentHandle {
+        val file = File.createTempFile("a11y", ".pdf", context.cacheDir)
+        val pdf = PdfDocument()
+        try {
+            val page = pdf.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
+            page.canvas.drawText("Ein Satz zum Vorlesen.", 50f, 80f, Paint().apply { textSize = 20f })
+            pdf.finishPage(page)
+            file.outputStream().use(pdf::writeTo)
+        } finally { pdf.close() }
+        val store = DocumentStore(context)
+        val document = runBlocking { store.importPdf(Uri.fromFile(file)) {} }
+        file.delete()
+        return ReaderDocumentHandle(document.id, document.title) { runBlocking { store.remove(document.id) } }
+    }
+
+    class ReaderDocumentHandle(val id: String, val title: String, val remove: () -> Unit)
+
     /** The label a screen reader would read: the description if there is one, otherwise the text. */
     private fun SemanticsNodeInteraction.label(): String {
         val node = fetchSemanticsNode()
@@ -30,6 +65,11 @@ class AccessibilityRulesTest {
         return (described ?: text).orEmpty().trim()
     }
 
+    /**
+     * Note that this walks every semantic root, so with a dialog open the controls of the screen behind it are
+     * measured too. That makes the check stricter than what a screen reader reaches, never weaker, and the log
+     * line below names what was actually seen.
+     */
     private fun checkScreen(where: String) {
         val controls = compose.onAllNodes(hasClickAction() and isEnabled())
         val count = controls.fetchSemanticsNodes().size
@@ -79,6 +119,48 @@ class AccessibilityRulesTest {
         compose.onNodeWithText("Stimme und Einstellungen").performClick()
         compose.waitForIdle()
         checkScreen("Einstellungen")
+    }
+
+    @Test fun theLibraryFollowsTheRules() {
+        val document = importedDocument()
+        try {
+            compose.onNodeWithText("Bibliothek").performClick()
+            compose.waitUntil { compose.onAllNodesWithText("Entfernen").fetchSemanticsNodes().isNotEmpty() }
+            checkScreen("Bibliothek")
+        } finally { document.remove() }
+    }
+
+    /**
+     * Removing a document is the one step in this app that destroys something, and it is the one place where two
+     * buttons once nearly carried the same name. It gets checked like every other screen.
+     */
+    @Test fun theRemovalQuestionFollowsTheRules() {
+        val document = importedDocument()
+        try {
+            compose.onNodeWithText("Bibliothek").performClick()
+            compose.waitUntil { compose.onAllNodesWithText("Entfernen").fetchSemanticsNodes().isNotEmpty() }
+            compose.onNodeWithContentDescription("${document.title} entfernen").performClick()
+            compose.waitForIdle()
+            compose.onNodeWithText("Wirklich entfernen?").assertExists()
+            checkScreen("Rückfrage vor dem Entfernen")
+        } finally { document.remove() }
+    }
+
+    /** The message that appears when something went wrong is the last thing a listener has left to press. */
+    @Test fun theErrorMessageFollowsTheRules() {
+        val model = model()
+        compose.runOnUiThread { model.showError("Die Seiten konnten nicht geladen werden.") }
+        compose.waitForIdle()
+        compose.onNodeWithText("Hinweis").assertExists()
+        checkScreen("Hinweis")
+        compose.runOnUiThread { model.dismissError() }
+    }
+
+    @Test fun theCommandHelpFollowsTheRules() {
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Alle Befehle und Texteingabe"))
+        compose.onNodeWithText("Alle Befehle und Texteingabe").performClick()
+        compose.waitForIdle()
+        checkScreen("Sprachbefehle")
     }
 
     /** A screen reader moves by heading. A screen without them can only be walked through one control at a time. */
