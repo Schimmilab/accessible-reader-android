@@ -129,7 +129,7 @@ Die Hörposition wird etwa jede Sekunde gespeichert, zusammen mit Dokument, Absc
 
 Du kannst pausieren, die App schließen und später weiterhören. Beim nächsten Antippen von „Vorlesen" setzt sie an derselben Stelle fort.
 
-Ein Wechsel der Stimme beginnt den Abschnitt allerdings von vorn.
+Wenn du die Stimme wechselst, geht die Sekunde verloren, bei der du warst, denn in einer anderen Stimme liegt an derselben Sekunde ein anderes Wort. Der Reader beginnt deshalb das gerade laufende Stück noch einmal von vorn. Du hörst höchstens etwa eine Minute zweimal, nicht den ganzen Abschnitt.
 
 ## Erzeugtes Audio
 

@@ -8,7 +8,9 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import de.schimmilab.accessiblereader.core.ChapterAnnouncement
 import de.schimmilab.accessiblereader.core.ReaderDocument
+import de.schimmilab.accessiblereader.core.SavedPosition
 import de.schimmilab.accessiblereader.core.TextChunks
+import de.schimmilab.accessiblereader.core.resumePoint
 import de.schimmilab.accessiblereader.speech.SpeechProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -71,10 +73,15 @@ class SectionPreparer(
         // Part 0 is always the spoken section intro, so saved item indexes stay stable.
         val texts = listOf(ChapterAnnouncement.text(chapterIndex, document.chapters.size, chapter.title)) +
             TextChunks.splitForPlayback(chapter.text)
-        val resume = prefs.getInt("${document.id}.chapter", 0) == chapterIndex &&
-            prefs.getString("${document.id}.voice", "") == voiceId &&
-            !prefs.getBoolean("${document.id}.finished", false)
-        val startItem = if (resume) prefs.getInt("${document.id}.item", 0).coerceIn(texts.indices) else 0
+        val start = resumePoint(
+            SavedPosition(
+                chapter = prefs.getInt("${document.id}.chapter", 0),
+                item = prefs.getInt("${document.id}.item", 0),
+                offsetMs = prefs.getLong("${document.id}.offset", 0),
+                voiceId = prefs.getString("${document.id}.voice", "").orEmpty(),
+                finished = prefs.getBoolean("${document.id}.finished", false)),
+            chapterIndex, voiceId, texts.size)
+        val startItem = start.item
 
         val items = mutableListOf<MediaItem>()
         var leadMs = 0L          // audio buffered from the start position; playback waits until it clears minLeadMs
@@ -102,9 +109,7 @@ class SectionPreparer(
                 listener.onAppended()
             } else {
                 items += item
-                if (i == startItem) {
-                    startOffset = if (resume) prefs.getLong("${document.id}.offset", 0).coerceIn(0, part.durationMs) else 0
-                }
+                if (i == startItem) startOffset = start.offsetMs.coerceIn(0, part.durationMs)
                 if (i >= startItem) leadMs += part.durationMs
                 // Start only once enough audio lies ahead, so the short intro cannot drain before the first text
                 // part is ready.

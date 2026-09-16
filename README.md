@@ -91,9 +91,9 @@ Every push runs the unit tests, lint and a debug build, plus the PDF, EPUB and l
 - The spoken chapter announcement cannot be switched off.
 - The book keeps reading when the app is swiped out of the recents list, and the headset buttons for the next section keep working. The playback service prepares the next section itself, reading the text from the same store and needing nothing handed to it.
 - The app times every voice while it prepares a section and says so under the voice list when one cannot keep up with listening. A local neural voice sounds better and needs about thirty times longer to produce than a stock one, which is invisible until a book starts stopping to catch up.
-- Changing the voice restarts the chapter from the beginning.
+- Changing the voice keeps the part you had reached and starts that part again from its beginning. A section is cut into parts by its text alone, so the part means the same words in every voice; only the seconds inside it belong to the old voice, because the same millisecond is a different word once a voice reads half again as fast. At most one part is repeated, never the section.
 - Generated audio is trimmed at 500 MB, least recently heard first, and re-synthesized if needed.
-- Every control on the main screen, the contents and the settings is checked on every push: it carries a name, measures at least 48 by 48 density pixels, and shares its name with no other control. Contrast, focus order and everything that only appears under a real screen reader still need a manual walk, and there is no systematic testing across manufacturers.
+- Every control on the main screen, the contents, the settings, the library, the question before a document is removed, the command list and the error message is checked on every push: it carries a name, measures at least 48 by 48 density pixels, and shares its name with no other control. Contrast, focus order and everything that only appears under a real screen reader still need a manual walk, and there is no systematic testing across manufacturers.
 
 ## Principles
 

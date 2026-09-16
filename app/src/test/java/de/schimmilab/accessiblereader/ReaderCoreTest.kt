@@ -110,6 +110,32 @@ class ReaderCoreTest {
         assertTrue("and a timeout is one of those cancellations",
             java.util.concurrent.CancellationException() is IllegalStateException)
     }
+    /**
+     * Changing the voice used to throw away the place in the section: the listener started the book again from
+     * the section heading, up to ten minutes back. The parts a section is cut into do not depend on the voice at
+     * all, only their length in seconds does, so the part is kept and only the seconds inside it are given up.
+     */
+    @Test fun anotherVoiceKeepsThePartSomeoneWasListeningTo() {
+        val saved = SavedPosition(chapter = 3, item = 7, offsetMs = 18_000, voiceId = "de-thorsten", finished = false)
+
+        assertEquals(AudioPosition(7, 18_000), resumePoint(saved, 3, "de-thorsten", parts = 12))
+        assertEquals("the same part, but from its beginning",
+            AudioPosition(7, 0), resumePoint(saved, 3, "de-google", parts = 12))
+    }
+
+    @Test fun aDifferentSectionOrAFinishedOneStartsAtTheBeginning() {
+        val saved = SavedPosition(chapter = 3, item = 7, offsetMs = 18_000, voiceId = "de-thorsten", finished = false)
+
+        assertEquals(AudioPosition(0, 0), resumePoint(saved, 4, "de-thorsten", parts = 12))
+        assertEquals(AudioPosition(0, 0), resumePoint(saved.copy(finished = true), 3, "de-thorsten", parts = 12))
+    }
+
+    /** A section can hold fewer parts than the saved one did, for instance after the text was imported again. */
+    @Test fun aSavedPartBeyondTheSectionDoesNotThrow() {
+        val saved = SavedPosition(chapter = 0, item = 40, offsetMs = 5_000, voiceId = "de-google", finished = false)
+        assertEquals(AudioPosition(2, 5_000), resumePoint(saved, 0, "de-google", parts = 3))
+    }
+
     @Test fun theSpeedMovesInStepsSomeoneCanAimAt() {
         // A quarter step was unusable: from normal the next one down was noticeably slow and the next one up
         // noticeably fast, with nothing in between.

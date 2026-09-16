@@ -111,6 +111,25 @@ object AudioTimeline {
     }
 }
 
+/** What was written down about a listener's place in a document, read back from the preferences. */
+data class SavedPosition(val chapter: Int, val item: Int, val offsetMs: Long, val voiceId: String,
+                         val finished: Boolean)
+
+/**
+ * Where a section starts when it is opened again.
+ *
+ * A section is cut into parts by its text alone, never by the voice, so the part someone was listening to still
+ * means the same words in another voice. Only the seconds inside that part belong to the old voice: the same
+ * millisecond is a different word once a voice reads half again as fast. So a changed voice keeps the part and
+ * starts it from the beginning, which repeats at most one part instead of the whole section. Before this, a
+ * listener who tried another voice was thrown back to the section heading, up to ten minutes of listening.
+ */
+fun resumePoint(saved: SavedPosition, chapterIndex: Int, voiceId: String, parts: Int): AudioPosition {
+    if (parts <= 0 || saved.chapter != chapterIndex || saved.finished) return AudioPosition(0, 0)
+    val item = saved.item.coerceIn(0, parts - 1)
+    return AudioPosition(item, if (saved.voiceId == voiceId) saved.offsetMs.coerceAtLeast(0) else 0)
+}
+
 object TextChunks {
     /**
      * Turns one extracted page into speakable text. The order matters: the page number has to go before the

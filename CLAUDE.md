@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.9.5.
+Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.9.6.
 
 **The reference device is a Samsung Galaxy S25, Android 16 / One UI 8.5, Samsung TalkBack 16.2, Vocalizer speech engine, mostly a Bluetooth speaker** (`docs/decisions/0002-target-device-samsung-s25.md`). Only a Pixel emulator with Google TTS is available here, so the emulator proves logic and regressions, never that something works on the target. It is still unverified whether Vocalizer supports `synthesizeToFile`, which the whole audio pipeline depends on; the in-app diagnosis in the settings dialog exists to answer that remotely.
  Text PDFs and EPUB books are imported, split into chapters, synthesized to audio with a local German Android TTS voice and played through a MediaSession. Everything is designed around TalkBack, voice commands and media keys. Android is the lead platform by decision (`docs/decisions/0001-android-first.md`); do not design for a shared iOS codebase.
@@ -26,7 +26,7 @@ Requires Java 17 as Gradle JDK (daemon toolchain configured in `gradle/gradle-da
 ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.PlaybackFocusTest
 ```
 
-`.github/workflows/tests.yml` runs on every push: unit tests, lint and a debug build, plus `PdfImportTest`, `EpubImportTest`, `LibraryTest` and `AccessibilityRulesTest` on an emulator. Those four need no speech engine. Everything else does, and a fresh CI emulator has no German offline voice, so do not add voice or playback tests there; they would skip or fail for reasons that say nothing about the code.
+`.github/workflows/tests.yml` runs on every push: unit tests, lint and a debug build, plus `PdfImportTest`, `EpubImportTest`, `LibraryTest`, `AccessibilityRulesTest` and `SectionResumeTest` on an emulator. Those five need no speech engine; the last one gets by with a speech provider that returns silent WAV files of a fixed length, which is enough to test where a section starts. Everything else does, and a fresh CI emulator has no German offline voice, so do not add voice or playback tests there; they would skip or fail for reasons that say nothing about the code.
 
 **Turn TalkBack off before an automated run, and back on for manual accessibility testing.** With it enabled, every status live-region update makes TalkBack speak and hold audio focus, so playback tests stall for minutes and time out; measured 43-79 s per test with it off against 250 s timeouts with it on. `docs/TESTING.md` has the two commands.
 
@@ -67,7 +67,7 @@ State rules worth knowing before editing `ReaderViewModel`:
 - `synthesize` tries twice. An engine answers with an empty file now and then, right after another client of it has shut down, which is exactly what the app being swiped away does mid-book. Seen in a real run; the second attempt produced the audio. Do not remove it without checking `ReaderService` warnings during `KeepsReadingWithoutTheAppTest`.
 - **When the app dies, the service continues the book.** `ReaderPlaybackService` watches for a finished section and prepares the next one itself, reconstructing everything from the current media item: document id, section, voice. The text comes from the same `DocumentStore`, so nothing is handed across a Binder. The ViewModel sets `KEY_UI_ALIVE` in its init and clears it in `onCleared`, and the service only steps in when that flag is false, so the common path with a live app is unchanged.
 - Resuming where the listener stopped is the user's one named requirement (kept privately, see `docs/COLLABORATION.md`), guarded by `ResumePositionTest`. An empty buffer reports the same player state as a real chapter end, so the service writes `finished` only while `ReaderPlaybackService.KEY_PREPARING` is unset; a chapter wrongly marked finished restarts instead of resuming.
-- Position, chapter and voice are read from SharedPreferences on resume; a voice change restarts the chapter from the beginning (no text-accurate position transfer yet).
+- Position, chapter and voice are read from SharedPreferences on resume. `core/resumePoint` decides where a section starts: a section is cut into parts by its text alone, so another voice keeps the part someone was listening to and only gives up the seconds inside it, which belong to the old voice. At most one part is repeated instead of the whole section.
 
 ## Hard constraints
 

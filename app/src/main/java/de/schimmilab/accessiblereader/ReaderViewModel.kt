@@ -357,7 +357,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         val speed = storedSpeed(id)
         player?.setPlaybackSpeed(speed)
         mutable.update { it.copy(voiceId = id, speed = speed, durationMs = 0, positionMs = 0, voiceSpeed = measuredSpeed(id),
-            status = "Stimme gewechselt, ${speedLabel(speed)} fach. Dieses Kapitel beginnt beim nächsten Start von vorne.") }
+            status = "Stimme gewechselt, ${speedLabel(speed)} fach. Das Vorlesen setzt beim nächsten Start kurz vor deiner Stelle wieder ein.") }
     }
     fun library(open: Boolean) {
         mutable.update { it.copy(showLibrary = open) }
