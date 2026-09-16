@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.10.3.
+Native Android PDF reader for blind users (Kotlin, Jetpack Compose, Media3), version 0.10.4.
 
 **The reference device is a Samsung Galaxy S25, Android 16 / One UI 8.5, Samsung TalkBack 16.2, Vocalizer speech engine, mostly a Bluetooth speaker** (`docs/decisions/0002-target-device-samsung-s25.md`). Only a Pixel emulator with Google TTS is available here, so the emulator proves logic and regressions, never that something works on the target. It is still unverified whether Vocalizer supports `synthesizeToFile`, which the whole audio pipeline depends on; the in-app diagnosis in the settings dialog exists to answer that remotely.
  Text PDFs and EPUB books are imported, split into chapters, synthesized to audio with a local German Android TTS voice and played through a MediaSession. Everything is designed around TalkBack, voice commands and media keys. Android is the lead platform by decision (`docs/decisions/0001-android-first.md`); do not design for a shared iOS codebase.

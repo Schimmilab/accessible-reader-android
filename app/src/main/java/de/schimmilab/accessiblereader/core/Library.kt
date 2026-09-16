@@ -91,7 +91,12 @@ fun onlineVoiceRefusal(policy: OnlineVoicePolicy, network: NetworkKind): String 
 /** How the voice list describes a voice, so nobody picks an online voice without knowing it is one. */
 fun voiceLabel(index: Int, country: String, needsNetwork: Boolean): String {
     val place = country.ifBlank { "lokal" }
-    return if (needsNetwork) "Deutsch ${index + 1} · $place · braucht Internet" else "Deutsch ${index + 1} · $place"
+    // Named by what it is good for, not only by what it costs. The listener asked for "menschlichere Stimmen"
+    // while the ones that sound that way were sitting in her list, marked with nothing but a warning about the
+    // internet. A list of "Deutsch 1" to "Deutsch 8" gives no reason to try number 6 rather than number 2, and
+    // trying one by ear costs a sample each.
+    return if (needsNetwork) "Deutsch ${index + 1} · $place · aus dem Internet, meist natürlicher"
+    else "Deutsch ${index + 1} · $place"
 }
 
 /**
