@@ -131,6 +131,18 @@ Du kannst pausieren, die App schließen und später weiterhören. Beim nächsten
 
 Wenn du die Stimme wechselst, geht die Sekunde verloren, bei der du warst, denn in einer anderen Stimme liegt an derselben Sekunde ein anderes Wort. Der Reader beginnt deshalb das gerade laufende Stück noch einmal von vorn. Du hörst höchstens etwa eine Minute zweimal, nicht den ganzen Abschnitt.
 
+## Im Buch suchen
+
+Unter dem Inhaltsverzeichnis steht die Taste **Im Buch suchen**.
+
+Du gibst ein Wort ein und drückst „Suchen". Der Reader sagt dir sofort, wie viele Fundstellen es gibt, zum Beispiel „3 Fundstellen für Brücke." In der Liste nennt jeder Eintrag zuerst den Abschnitt und dann die Wörter rundherum, damit du hörst, ob es die richtige Stelle ist. Tippst du sie an, wird ab dort vorgelesen.
+
+Umlaute kannst du schreiben, wie du magst: „Brücke" und „Bruecke" finden dasselbe.
+
+Per Sprache: „Suche nach Brücke".
+
+Gefunden werden höchstens zwanzig Stellen, höchstens drei je Abschnitt — sonst wäre die Liste nicht mehr zu überblicken, wenn man sie vorgelesen bekommt.
+
 ## Einschlafen
 
 Unter den Lesezeichen steht die Taste **Einschlaftimer**. Sie sagt dir immer, was gerade eingestellt ist: „Einschlaftimer" heißt aus, sonst zum Beispiel „Einschlaftimer, noch 24 Minuten". Du musst also nichts öffnen, um zu hören, wie lange noch gelesen wird.

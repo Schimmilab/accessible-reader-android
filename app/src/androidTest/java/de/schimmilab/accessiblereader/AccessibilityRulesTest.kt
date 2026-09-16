@@ -160,6 +160,16 @@ class AccessibilityRulesTest {
         compose.runOnUiThread { model.state.value.bookmarks.forEach { model.removeBookmark(it) } }
     }
 
+    /** The search, with a result in the list so the rows are checked and not only the empty dialog. */
+    @Test fun theSearchFollowsTheRules() {
+        val model = model()
+        compose.onNodeWithText("Leseprobe").performClick()
+        compose.waitForIdle()
+        compose.runOnUiThread { model.search("Inhaltsverzeichnis") }
+        compose.waitForIdle()
+        checkScreen("Suche")
+    }
+
     @Test fun theSleepTimerFollowsTheRules() {
         compose.onNodeWithText("Leseprobe").performClick()
         compose.waitForIdle()

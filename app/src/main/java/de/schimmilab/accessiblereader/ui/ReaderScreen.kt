@@ -21,6 +21,8 @@ import de.schimmilab.accessiblereader.ReaderViewModel
 import de.schimmilab.accessiblereader.core.NO_BOOKMARKS
 import de.schimmilab.accessiblereader.core.OnlineVoicePolicy
 import de.schimmilab.accessiblereader.core.SleepOption
+import de.schimmilab.accessiblereader.core.hitLabel
+import de.schimmilab.accessiblereader.core.searchResultAnnouncement
 import de.schimmilab.accessiblereader.core.sleepButtonLabel
 import de.schimmilab.accessiblereader.core.sleepLabel
 import de.schimmilab.accessiblereader.core.bookmarksHeading
@@ -124,6 +126,8 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                         OutlinedButton(onClick = { model.chapter(s.chapter + 1) }, enabled = !s.busy && s.chapter < s.document.chapters.lastIndex && !s.listening, modifier = Modifier.weight(1f).heightIn(min = 60.dp)) { Text("Nächster\nAbschnitt") }
                     }
                     OutlinedButton(onClick = { model.contents(true) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Inhaltsverzeichnis") }
+                    OutlinedButton(onClick = { model.searchDialog(true) }, enabled = !s.listening,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Im Buch suchen") }
                     OutlinedButton(onClick = model::announcePosition, enabled = !s.busy && !s.listening, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Wo bin ich? Position vorlesen") }
                     // Two separate buttons on purpose: marking a place is done while listening and must not go
                     // through a list first, and the list must not be reachable only by marking something.
@@ -193,6 +197,41 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                 }
             }
         }, confirmButton = { TextButton(onClick = { model.contents(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
+    if (s.showSearch) {
+        var query by remember { mutableStateOf(s.query) }
+        AlertDialog(onDismissRequest = { model.searchDialog(false) }, title = { Text("Im Buch suchen") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = query, onValueChange = { query = it },
+                        label = { Text("Wonach suchen?") }, singleLine = true,
+                        modifier = Modifier.fillMaxWidth())
+                    // The number of hits is spoken through the status line as well; this is for anyone reading.
+                    if (s.query.isNotBlank()) {
+                        Text(searchResultAnnouncement(s.query, s.hits), style = MaterialTheme.typography.bodyMedium)
+                    }
+                    LazyColumn(Modifier.heightIn(max = 360.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        itemsIndexed(s.hits) { index, hit ->
+                            Row(Modifier.fillMaxWidth().heightIn(min = 64.dp)
+                                .clickable(enabled = !s.busy && !s.listening) { model.goToHit(hit) }
+                                .padding(vertical = 8.dp)
+                                // Numbered out loud, because several hits in one section are otherwise told
+                                // apart only by their wording, which is hard to hold in your head.
+                                .semantics { contentDescription = "Fundstelle ${index + 1}: ${hitLabel(hit)}" },
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text(hitLabel(hit), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { model.search(query) }, enabled = query.isNotBlank() && !s.busy,
+                    modifier = Modifier.heightIn(min = 48.dp)) { Text("Suchen") }
+            },
+            dismissButton = {
+                TextButton(onClick = { model.searchDialog(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") }
+            })
+    }
     if (s.showSleep) AlertDialog(onDismissRequest = { model.sleepDialog(false) },
         title = { Text("Einschlaftimer") },
         text = {
@@ -363,7 +402,7 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
         var input by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { commandHelp = false }, title = { Text("Sprachbefehle") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Vorlesen · Pause · 30 Sekunden zurück · 30 Sekunden vor · nächstes Kapitel · vorheriges Kapitel · Inhaltsverzeichnis · Bibliothek · wo bin ich · Stelle merken · Lesezeichen · Kapitel 2")
+                Text("Vorlesen · Pause · 30 Sekunden zurück · 30 Sekunden vor · nächstes Kapitel · vorheriges Kapitel · Inhaltsverzeichnis · Bibliothek · wo bin ich · Stelle merken · Lesezeichen · Einschlaftimer · suche nach … · Kapitel 2")
                 Text("Zum Testen lässt sich ein Befehl auch eingeben.")
                 OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Befehl eingeben") })
             }

@@ -61,6 +61,8 @@ data class ReaderState(
     val bookmarks: List<Bookmark> = emptyList(), val showBookmarks: Boolean = false,
     /** The sleep timer, and how long it still has to run. */
     val sleep: SleepOption = SleepOption.OFF, val sleepRemainingMs: Long = 0, val showSleep: Boolean = false,
+    /** What was last searched for in this document, and where it stands. */
+    val query: String = "", val hits: List<Hit> = emptyList(), val showSearch: Boolean = false,
 )
 
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
@@ -210,7 +212,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         val saved = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices)
         val heard = prefs.contains("${document.id}.voice")
         mutable.update { it.copy(document = document, chapter = saved, durationMs = 0, positionMs = 0, error = null,
-            bookmarks = readBookmarks(document.id), showBookmarks = false,
+            bookmarks = readBookmarks(document.id), showBookmarks = false, hits = emptyList(), query = "",
             status = openedMessage(document.title, document.chapters.size, saved, heard)) }
     }
 
@@ -475,6 +477,37 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         }
     }.getOrDefault(emptyList())
 
+    fun searchDialog(open: Boolean) =
+        mutable.update { it.copy(showSearch = open, hits = if (open) it.hits else emptyList(), query = if (open) it.query else "") }
+
+    /**
+     * Searches the open book and says how many places were found, because a screen reader reads the list only
+     * once the listener has found their way to it.
+     */
+    fun search(query: String) {
+        val found = search(state.value.document, query, cast().twoVoices)
+        mutable.update { it.copy(query = query, hits = found, showSearch = true,
+            status = searchResultAnnouncement(query, found)) }
+    }
+
+    /** Starts reading at a found passage, the same way a bookmark is reached. */
+    fun goToHit(hit: Hit) {
+        val s = state.value
+        if (s.busy) return
+        stopPreparation()
+        pause(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        prefs.edit()
+            .putInt("${s.document.id}.chapter", hit.chapter)
+            .putInt("${s.document.id}.item", hit.item)
+            .putLong("${s.document.id}.offset", 0)
+            .putString("${s.document.id}.voice", cast(s).key)
+            .putBoolean("${s.document.id}.finished", false)
+            .apply()
+        mutable.update { it.copy(chapter = hit.chapter.coerceIn(s.document.chapters.indices),
+            showSearch = false, positionMs = 0, durationMs = 0, status = "Weiter bei ${hit.chapterTitle}.") }
+        play(quiet = true)
+    }
+
     fun sleepDialog(open: Boolean) = mutable.update { it.copy(showSleep = open) }
 
     /**
@@ -705,6 +738,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             ReaderCommand.Mark -> mark()
             ReaderCommand.Bookmarks -> bookmarks(true)
             ReaderCommand.Sleep -> sleepDialog(true)
+            is ReaderCommand.Search -> { searchDialog(true); search(command.query) }
             is ReaderCommand.Seek -> seek(command.seconds)
             is ReaderCommand.GoTo -> if (command.chapter in 1..state.value.document.chapters.size) chapter(command.chapter - 1) else showError("Diesen Abschnitt gibt es nicht.")
             null -> showError("Befehl nicht erkannt: $text. Beispiele: Vorlesen, Pause, 30 Sekunden zurück, nächstes Kapitel.")

@@ -251,12 +251,28 @@ sealed interface ReaderCommand {
     data object Mark : ReaderCommand
     data object Bookmarks : ReaderCommand
     data object Sleep : ReaderCommand
+    data class Search(val query: String) : ReaderCommand
     data class Seek(val seconds: Int) : ReaderCommand
     data class GoTo(val chapter: Int) : ReaderCommand
 }
 
 object CommandParser {
+    /**
+     * A search keeps the words as they were said, unlike every other command.
+     *
+     * The rest of this parser folds "ü" to "u" to compare against fixed words, which would turn a search for
+     * "Brücke" into one for "brucke" and find nothing in a book full of the word. What is searched folds both
+     * sides its own way, so the query has to reach it unspoilt.
+     */
+    private val SEARCH = Regex("^\\s*(?:such|suche|finde|find)(?:\\s+nach)?\\s+(\\S.*)$", RegexOption.IGNORE_CASE)
+
     fun parse(input: String): ReaderCommand? {
+        SEARCH.matchEntire(input.trim())?.let {
+            val query = it.groupValues[1].trim()
+            // "Suche nach" on its own is somebody who has not said what to look for yet, not a search for the
+            // word "nach". Speech recognition cuts a sentence short often enough for this to matter.
+            if (!query.equals("nach", ignoreCase = true)) return ReaderCommand.Search(query)
+        }
         val s = Normalizer.normalize(input.lowercase(Locale.GERMAN), Normalizer.Form.NFD)
             .replace(Regex("\\p{M}"), "").replace("ß", "ss")
             .replace(Regex("[^a-z0-9 ]"), " ").trim().replace(Regex(" +"), " ")
