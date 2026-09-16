@@ -131,6 +131,20 @@ Du kannst pausieren, die App schließen und später weiterhören. Beim nächsten
 
 Wenn du die Stimme wechselst, geht die Sekunde verloren, bei der du warst, denn in einer anderen Stimme liegt an derselben Sekunde ein anderes Wort. Der Reader beginnt deshalb das gerade laufende Stück noch einmal von vorn. Du hörst höchstens etwa eine Minute zweimal, nicht den ganzen Abschnitt.
 
+## Zwei Stimmen für einen Roman
+
+Im Dialog „Stimme und Einstellungen" steht unter der Stimmenliste der Punkt „Zweite Stimme für Gespräche".
+
+Wählst du dort eine zweite Stimme, spricht sie alles, was in Anführungszeichen steht, also das, was die Figuren sagen. Alles andere liest die Stimme, die du oben gewählt hast.
+
+Drei Dinge dazu, damit nichts überrascht:
+
+- Der Reader unterscheidet **nicht**, wer gerade spricht. Alle Figuren bekommen dieselbe zweite Stimme. Bei einem echten Roman steht bei vier von fünf Sätzen nirgends, wer sie sagt — geraten würde also meistens falsch, und eine falsche Stimme ist schlimmer als eine einzige.
+- Beide Stimmen sprechen im selben Tempo, nämlich dem, das du eingestellt hast.
+- Das Vorbereiten dauert etwas länger, weil der Text an jedem Anführungszeichen geteilt wird. Gemessen wurden 14 Prozent mehr.
+
+Beide Stimmen müssen aus derselben Sprachausgabe kommen. Wechselst du die Sprachausgabe, ist die zweite Stimme wieder abgewählt.
+
 ## Erzeugtes Audio
 
 Das erzeugte Audio liegt auf dem Telefon, damit Sprünge und Fortsetzen funktionieren. Der Dialog „Stimme und Einstellungen" zeigt unten, wie viel es ist.

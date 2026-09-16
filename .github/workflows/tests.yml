@@ -91,6 +91,7 @@ jobs:
             ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.LibraryTest && mkdir -p results/LibraryTest && cp -r app/build/outputs/androidTest-results/connected/. results/LibraryTest/
             ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.AccessibilityRulesTest && mkdir -p results/AccessibilityRulesTest && cp -r app/build/outputs/androidTest-results/connected/. results/AccessibilityRulesTest/
             ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.SectionResumeTest && mkdir -p results/SectionResumeTest && cp -r app/build/outputs/androidTest-results/connected/. results/SectionResumeTest/
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=de.schimmilab.accessiblereader.TwoVoicesTest && mkdir -p results/TwoVoicesTest && cp -r app/build/outputs/androidTest-results/connected/. results/TwoVoicesTest/
 
       - name: Keep the reports
         if: always()

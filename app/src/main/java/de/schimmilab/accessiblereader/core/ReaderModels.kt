@@ -206,8 +206,8 @@ object TextChunks {
      * pieces ran into the synthesis budget. The stock voices are so far ahead of playback that they never
      * noticed either way.
      */
-    fun splitForPlayback(text: String): List<String> = split(text) { index ->
-        when (index) { 0 -> 250; 1 -> 500; else -> 1000 }
+    fun splitForPlayback(text: String, from: Int = 0): List<String> = split(text) { index ->
+        when (index + from) { 0 -> 250; 1 -> 500; else -> 1000 }
     }
 
     private inline fun split(text: String, limitAt: (Int) -> Int): List<String> {

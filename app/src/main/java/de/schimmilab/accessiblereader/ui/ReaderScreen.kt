@@ -251,6 +251,32 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                 // Only appears once the app has actually timed this voice. A voice that cannot keep up with
                 // listening decides whether a book plays through, and nothing else on this screen shows it.
                 s.voiceSpeed?.let { note -> item { Text(note, style = MaterialTheme.typography.bodyMedium) } }
+                // A second voice for direct speech. Only worth offering when the engine has a second voice to give.
+                if (s.voices.size >= 2) {
+                    item {
+                        Text("Zweite Stimme für Gespräche", style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.semantics { heading() })
+                    }
+                    item {
+                        Text("In einem Roman kann eine zweite Stimme sprechen, was die Figuren sagen. Der Reader " +
+                            "trennt dafür an den Anführungszeichen. Wer spricht, rät er nicht: eine Stimme für " +
+                            "alle Figuren. Das Vorbereiten dauert damit etwas länger, und beide Stimmen sprechen " +
+                            "im eingestellten Tempo.", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    itemsIndexed(listOf<Pair<String, String>>("" to "Eine Stimme liest alles") +
+                        s.voices.filter { it.id != s.voiceId }.map { it.id to it.label }) { _, (id, label) ->
+                        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
+                            .selectable(selected = s.dialogueVoiceId == id, enabled = !s.busy, role = Role.RadioButton,
+                                onClick = { model.dialogueVoice(id) })
+                            // Named apart from the same voice in the list above, because two controls a screen
+                            // reader reads out identically cannot be told apart by ear.
+                            .semantics { contentDescription = if (id.isBlank()) label else "$label für Gespräche" },
+                            verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = s.dialogueVoiceId == id, onClick = null)
+                            Text(label, Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
                 item { Text("Stimmen aus dem Internet", style = MaterialTheme.typography.titleMedium, modifier = Modifier.semantics { heading() }) }
                 item {
                     Text("Manche Stimmen holen ihre Sprache aus dem Internet und klingen besser. Die App selbst geht " +

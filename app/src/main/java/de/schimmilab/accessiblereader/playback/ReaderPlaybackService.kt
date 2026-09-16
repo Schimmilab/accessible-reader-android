@@ -18,6 +18,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import android.content.SharedPreferences
 import de.schimmilab.accessiblereader.MainActivity
 import de.schimmilab.accessiblereader.core.AudioTimeline
+import de.schimmilab.accessiblereader.core.VoiceCast
 import de.schimmilab.accessiblereader.data.DocumentStore
 import de.schimmilab.accessiblereader.speech.AndroidSpeechProvider
 import kotlinx.coroutines.CancellationException
@@ -81,7 +82,10 @@ class ReaderPlaybackService : MediaSessionService() {
                     ?: return@launch
                 if (next !in document.chapters.indices || document.chapters[next].text.isBlank()) return@launch
                 SectionPreparer(speech, preferences, SectionPreparer.MIN_LEAD_MS, SectionPreparer.CACHE_BUDGET_BYTES)
-                    .prepare(player, document, next, voice, player.playbackParameters.speed, object : SectionProgress {})
+                    // The extra holds the whole cast, so a book being read with two voices keeps both when the
+                    // app is gone and the service carries on by itself.
+                    .prepare(player, document, next, VoiceCast.parse(voice), player.playbackParameters.speed,
+                        object : SectionProgress {})
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 android.util.Log.w("ReaderService", "Der naechste Abschnitt liess sich nicht vorbereiten", e)

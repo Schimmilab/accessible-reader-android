@@ -42,6 +42,8 @@ data class ReaderState(
     val preparing: Boolean = false,
     val positionMs: Long = 0, val durationMs: Long = 0, val speed: Float = 1f,
     val voices: List<ReaderVoice> = emptyList(), val voiceId: String = "",
+    /** The second voice, for what the characters of a novel say. Blank means one voice reads everything. */
+    val dialogueVoiceId: String = "",
     val engines: Map<String, String> = emptyMap(), val engineId: String = "",
     val status: String = "Bereit für deine erste Leseprobe.", val error: String? = null,
     val showContents: Boolean = false, val showSettings: Boolean = false,
@@ -143,7 +145,10 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             val chosen = prefs.getString("engine", "").orEmpty().ifBlank { speech.defaultEngineName() }
             val policy = runCatching { OnlineVoicePolicy.valueOf(prefs.getString("onlineVoices", "") ?: "") }
                 .getOrDefault(OnlineVoicePolicy.WIFI_ONLY)
+            // A second voice from another engine cannot be reached, so it is dropped when the engine changes.
+            val dialogue = voices.firstOrNull { it.id == prefs.getString("voice.dialogue", null) }?.id.orEmpty()
             mutable.update { current -> current.copy(voices = voices, engines = engines, engineId = chosen, onlineVoices = policy,
+                dialogueVoiceId = dialogue,
                 voiceId = voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id ?: voices.firstOrNull()?.id.orEmpty(),
                 voiceSpeed = measuredSpeed(voices.firstOrNull { it.id == prefs.getString("voice", null) }?.id
                     ?: voices.firstOrNull()?.id.orEmpty()),
@@ -160,7 +165,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         if (state.value.busy || packageName == state.value.engineId) return
         stopPreparation()
         pause(); player?.stop(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
-        prefs.edit().putString("engine", packageName).remove("voice").apply()
+        prefs.edit().putString("engine", packageName).remove("voice").remove("voice.dialogue").apply()
         speech.close()
         speech = AndroidSpeechProvider(getApplication(), packageName)
         mutable.update { it.copy(engineId = packageName, voices = emptyList(), voiceId = "",
@@ -209,11 +214,13 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         if (chapter.text.isBlank()) return showError("Dieser Abschnitt enthält keinen lesbaren Text. Bitte einen anderen Abschnitt wählen.")
         // Checked before anything is prepared, so a voice that cannot work right now says so instead of failing
         // halfway through a chapter.
-        if (s.voices.firstOrNull { it.id == s.voiceId }?.needsNetwork == true) {
+        // Both voices are checked: a section that starts in the narrator's voice and stops at the first line of
+        // dialogue would be worse than not starting at all.
+        if (s.voices.any { (it.id == s.voiceId || it.id == s.dialogueVoiceId) && it.needsNetwork }) {
             val network = networkKind()
             if (!mayUseOnlineVoice(s.onlineVoices, network)) return showError(onlineVoiceRefusal(s.onlineVoices, network))
         }
-        val key = "${s.document.id}:${s.chapter}:${s.voiceId}"
+        val key = "${s.document.id}:${s.chapter}:${cast(s).key}"
         if (preparedKey == key && p.mediaItemCount > 0) {
             if (p.playbackState == Player.STATE_ENDED) p.seekTo(0, 0)
             p.prepare(); p.play(); syncPlayer(); mutable.update { it.copy(status = "Wiedergabe läuft.") }; return
@@ -228,13 +235,16 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                 // The very preparer the playback service uses when the app is gone, so there is one loop and not
                 // two copies of the subtleties it contains.
                 SectionPreparer(speech, prefs, MIN_LEAD_MS, CACHE_BUDGET_BYTES)
-                    .prepare(p, s.document, s.chapter, s.voiceId, state.value.speed, object : SectionProgress {
+                    .prepare(p, s.document, s.chapter, cast(s), state.value.speed, object : SectionProgress {
                         override fun onPreparing(index: Int, total: Int) {
                             if (!quiet) mutable.update { it.copy(status = "Bereite Audio vor: Teil ${index + 1} von $total.") }
                         }
                         override fun onSynthesized(workMs: Long, audioMs: Long, characters: Int, fromCache: Boolean) {
                             // Only real work counts. A cache hit costs nothing and would make every voice look instant.
-                            if (!fromCache && audioMs > 0) recordVoiceSpeed(s.voiceId, workMs, audioMs, characters)
+                            // Only measured while one voice reads everything. With two, a piece cannot be told
+                            // apart from here, and mixing both rates into one average would describe neither.
+                            if (!fromCache && audioMs > 0 && !cast(s).twoVoices)
+                                recordVoiceSpeed(s.voiceId, workMs, audioMs, characters)
                         }
                         override fun onStarted(key: String, pending: Int) {
                             preparedKey = key; started = true
@@ -247,7 +257,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
                     })
                 // The section is complete. Put the beginning of the next one into the audio cache while this one
                 // is still being listened to, so the change of section does not fall silent.
-                if (state.value.playbackRequested) prefetchNext(s.document, s.chapter + 1, s.voiceId)
+                if (state.value.playbackRequested) prefetchNext(s.document, s.chapter + 1, cast(s))
             } catch (e: Exception) {
                 // A timeout arrives as a CancellationException too. Rethrowing it silently was the worst bug this
                 // app had: a slow voice simply stopped, with no sound, no message and nothing to press.
@@ -272,18 +282,20 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
      * Deliberately outside `preparing`: that flag gates automatic continuation, and setting it here would stop
      * the very thing this exists to smooth.
      */
-    private fun prefetchNext(document: ReaderDocument, index: Int, voiceId: String) {
+    private fun prefetchNext(document: ReaderDocument, index: Int, cast: VoiceCast) {
         prefetch?.cancel()
         val chapter = document.chapters.getOrNull(index) ?: return
-        if (chapter.text.isBlank() || voiceId.isBlank()) return
+        if (chapter.text.isBlank() || cast.narrator.isBlank()) return
         prefetch = viewModelScope.launch {
             runCatching {
-                val texts = listOf(ChapterAnnouncement.text(index, document.chapters.size, chapter.title)) +
-                    TextChunks.splitForPlayback(chapter.text)
+                val texts = listOf(Passage(SpeakingRole.NARRATOR,
+                    ChapterAnnouncement.text(index, document.chapters.size, chapter.title))) +
+                    (if (cast.twoVoices) Narration.partsForPlayback(chapter.text)
+                    else TextChunks.splitForPlayback(chapter.text).map { Passage(SpeakingRole.NARRATOR, it) })
                 var ready = 0L
-                for (text in texts) {
+                for (passage in texts) {
                     ensureActive()
-                    ready += speech.synthesize(text, voiceId).durationMs
+                    ready += speech.synthesize(passage.text, cast.voiceFor(passage.role)).durationMs
                     // Enough for playback to start on; the rest is prepared as usual once the section is open.
                     if (ready >= MIN_LEAD_MS) break
                 }
@@ -352,13 +364,34 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         if (state.value.busy) return
         stopPreparation()
         pause(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        // Picking the voice that was reading the dialogue leaves one voice for everything, which is what it is.
+        if (id == state.value.dialogueVoiceId) prefs.edit().remove("voice.dialogue").apply()
         prefs.edit().putString("voice", id).apply()
         // Every voice keeps its own speed, because they do not speak at the same rate at all.
         val speed = storedSpeed(id)
         player?.setPlaybackSpeed(speed)
         mutable.update { it.copy(voiceId = id, speed = speed, durationMs = 0, positionMs = 0, voiceSpeed = measuredSpeed(id),
+            dialogueVoiceId = if (id == it.dialogueVoiceId) "" else it.dialogueVoiceId,
             status = "Stimme gewechselt, ${speedLabel(speed)} fach. Das Vorlesen setzt beim nächsten Start kurz vor deiner Stelle wieder ein.") }
     }
+    /** The voices the current selection reads with: the chosen one, plus a second one for direct speech. */
+    private fun cast(s: ReaderState = state.value) = VoiceCast(s.voiceId, s.dialogueVoiceId)
+
+    /**
+     * Chooses the voice for what the characters say, or clears it with a blank id. Both voices come from the
+     * same engine, because one provider speaks to one engine.
+     */
+    fun dialogueVoice(id: String) {
+        if (state.value.busy || id == state.value.dialogueVoiceId) return
+        stopPreparation()
+        pause(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        prefs.edit().putString("voice.dialogue", id).apply()
+        val label = state.value.voices.firstOrNull { it.id == id }?.label
+        mutable.update { it.copy(dialogueVoiceId = id, durationMs = 0, positionMs = 0,
+            status = if (label == null) "Eine Stimme liest alles. Das Vorlesen beginnt beim nächsten Start neu."
+            else "$label spricht ab jetzt, was die Figuren sagen. Das Vorlesen beginnt beim nächsten Start neu.") }
+    }
+
     fun library(open: Boolean) {
         mutable.update { it.copy(showLibrary = open) }
         if (open) refreshLibrary()

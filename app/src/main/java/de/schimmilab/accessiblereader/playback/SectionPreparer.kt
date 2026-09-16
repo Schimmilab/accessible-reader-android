@@ -7,8 +7,12 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import de.schimmilab.accessiblereader.core.ChapterAnnouncement
+import de.schimmilab.accessiblereader.core.Narration
+import de.schimmilab.accessiblereader.core.Passage
 import de.schimmilab.accessiblereader.core.ReaderDocument
 import de.schimmilab.accessiblereader.core.SavedPosition
+import de.schimmilab.accessiblereader.core.SpeakingRole
+import de.schimmilab.accessiblereader.core.VoiceCast
 import de.schimmilab.accessiblereader.core.TextChunks
 import de.schimmilab.accessiblereader.core.resumePoint
 import de.schimmilab.accessiblereader.speech.SpeechProvider
@@ -60,19 +64,24 @@ class SectionPreparer(
         player: Player,
         document: ReaderDocument,
         chapterIndex: Int,
-        voiceId: String,
+        cast: VoiceCast,
         speed: Float,
         listener: SectionProgress,
     ) {
         val chapter = document.chapters[chapterIndex]
+        val voiceId = cast.key
         val key = "${document.id}:$chapterIndex:$voiceId"
         player.stop(); player.clearMediaItems()
         // Makes room instead of refusing: a long book outgrows any budget, and stopping mid-book is worse than
         // synthesizing an old section again should the listener return to it.
         withContext(Dispatchers.IO) { speech.trimCache(cacheBudgetBytes) }
         // Part 0 is always the spoken section intro, so saved item indexes stay stable.
-        val texts = listOf(ChapterAnnouncement.text(chapterIndex, document.chapters.size, chapter.title)) +
-            TextChunks.splitForPlayback(chapter.text)
+        // With a second voice the text is cut at the quotation marks as well, which makes more and shorter
+        // parts. Without one the pieces are exactly what every earlier version produced, down to the cache key.
+        val texts = listOf(Passage(SpeakingRole.NARRATOR,
+            ChapterAnnouncement.text(chapterIndex, document.chapters.size, chapter.title))) +
+            (if (cast.twoVoices) Narration.partsForPlayback(chapter.text)
+            else TextChunks.splitForPlayback(chapter.text).map { Passage(SpeakingRole.NARRATOR, it) })
         val start = resumePoint(
             SavedPosition(
                 chapter = prefs.getInt("${document.id}.chapter", 0),
@@ -87,15 +96,18 @@ class SectionPreparer(
         var leadMs = 0L          // audio buffered from the start position; playback waits until it clears minLeadMs
         var startOffset = 0L
         var started = false
-        texts.forEachIndexed { i, text ->
+        texts.forEachIndexed { i, passage ->
             if (!started) listener.onPreparing(i, texts.size)
             val began = System.currentTimeMillis()
-            val part = speech.synthesize(text, voiceId)
+            val spokenBy = cast.voiceFor(passage.role)
+            val part = speech.synthesize(passage.text, spokenBy)
             coroutineContext.ensureActive()
-            listener.onSynthesized(System.currentTimeMillis() - began, part.durationMs, text.length, part.fromCache)
+            listener.onSynthesized(System.currentTimeMillis() - began, part.durationMs, passage.text.length, part.fromCache)
+            // "voice" is the whole cast, because that is what identifies a prepared section and what the saved
+            // position is compared against. "partVoice" is the one voice this piece was spoken by.
             val extra = Bundle().apply {
                 putString("document", document.id); putInt("chapter", chapterIndex); putString("voice", voiceId)
-                putLong("duration", part.durationMs)
+                putString("partVoice", spokenBy); putLong("duration", part.durationMs)
             }
             val item = MediaItem.Builder().setMediaId("$key:$i").setUri(Uri.fromFile(part.file))
                 .setMediaMetadata(MediaMetadata.Builder().setTitle(chapter.title).setArtist(document.title)
