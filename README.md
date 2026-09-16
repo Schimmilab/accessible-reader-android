@@ -33,6 +33,7 @@ So the goal here is narrow and specific: an app whose every function is reachabl
 - **Any installed speech engine** can be selected, including licensed engines that report no individual voices. Each voice has a *Probe* button speaking one identical sample with numbers, a date and abbreviations, so voices can be compared by ear.
 - **A self diagnosis** that probes every installed engine separately and reports what each can do, as shareable plain text. Built because the target device could not be inspected from here.
 - **The listening position survives** pausing, leaving the app and closing it.
+- **Bookmarks**, up to twenty per book: *Stelle merken* keeps the place being listened to and says so out loud, and the list names each one by section and minute. Reachable by voice as well.
 - **Voice commands**, recognised on the device, started only by a button press. Never a silent fallback to cloud recognition.
 - **Speed** from 0.5 to 2.0, remembered.
 
@@ -91,7 +92,7 @@ Every push runs the unit tests, lint and a debug build, plus the PDF, EPUB and l
 - Bookmarks map to page starts. Several bookmarks on one page collapse into one entry. **Tables come out row by row**, which is how text extraction sees them, so a page with a table next to a paragraph reads the two interleaved. A table is never taken for two columns though: reading one column-wise would tear every number away from the row it belongs to, which is what happened to a table of contribution rates before the rules were tightened.
 - The second voice for direct speech does not tell the characters apart: one voice speaks all of them. Measured over all of Fontane's *Effi Briest*, four out of five lines of dialogue are not followed by any "sagte er" or "sagte sie", so a male and a female voice would be assigned wrongly most of the time, and the wrong voice is worse than one voice. Direct speech is 51 % of that novel, a section becomes about 38 parts instead of twelve, and preparing it took 14 % longer with the stock voices on an emulator.
 - Both voices play at the speed set for the chosen voice. One speed per section, so pressing *Langsamer* during a line of dialogue does what it says.
-- One listening position per document. No search, no user bookmarks.
+- One listening position per document, plus up to twenty bookmarks. No search inside a book.
 - The spoken chapter announcement cannot be switched off.
 - The book keeps reading when the app is swiped out of the recents list, and the headset buttons for the next section keep working. The playback service prepares the next section itself, reading the text from the same store and needing nothing handed to it.
 - The app times every voice while it prepares a section and says so under the voice list when one cannot keep up with listening. A local neural voice sounds better and needs about thirty times longer to produce than a stock one, which is invisible until a book starts stopping to catch up.

@@ -146,6 +146,20 @@ class AccessibilityRulesTest {
         } finally { document.remove() }
     }
 
+    /** The list someone reaches for to find a passage again, with a bookmark in it so the rows are checked too. */
+    @Test fun theBookmarksFollowTheRules() {
+        val model = model()
+        compose.onNodeWithText("Leseprobe").performClick()
+        compose.waitForIdle()
+        compose.runOnUiThread { model.mark() }
+        compose.waitForIdle()
+        compose.onNode(hasScrollAction()).performScrollToNode(hasText("Stelle merken"))
+        compose.onNodeWithText("Lesezeichen, eines").performClick()
+        compose.waitForIdle()
+        checkScreen("Lesezeichen")
+        compose.runOnUiThread { model.state.value.bookmarks.forEach { model.removeBookmark(it) } }
+    }
+
     /** The message that appears when something went wrong is the last thing a listener has left to press. */
     @Test fun theErrorMessageFollowsTheRules() {
         val model = model()

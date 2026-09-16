@@ -22,6 +22,8 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import de.schimmilab.accessiblereader.core.*
+import org.json.JSONArray
+import org.json.JSONObject
 import de.schimmilab.accessiblereader.data.DocumentStore
 import de.schimmilab.accessiblereader.playback.ReaderPlaybackService
 import de.schimmilab.accessiblereader.playback.SectionPreparer
@@ -55,6 +57,8 @@ data class ReaderState(
     // Separate from busy: a running diagnosis must not lock the screen someone is waiting in front of.
     val diagnosing: Boolean = false,
     val library: List<LibraryItem> = emptyList(), val showLibrary: Boolean = false, val pendingRemoval: String? = null,
+    /** Places in the current document someone asked to come back to, newest first. */
+    val bookmarks: List<Bookmark> = emptyList(), val showBookmarks: Boolean = false,
 )
 
 class ReaderViewModel(application: Application) : AndroidViewModel(application) {
@@ -106,7 +110,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             val lastId = prefs.getString("document", null)
             val document = withContext(Dispatchers.IO) { lastId?.let(store::load) } ?: demoDocument()
-            mutable.update { it.copy(document = document, chapter = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices)) }
+            mutable.update { it.copy(document = document, bookmarks = readBookmarks(document.id),
+                chapter = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices)) }
             refreshVoices()
             while (isActive) {
                 syncPlayer()
@@ -199,6 +204,7 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
         val saved = prefs.getInt("${document.id}.chapter", 0).coerceIn(document.chapters.indices)
         val heard = prefs.contains("${document.id}.voice")
         mutable.update { it.copy(document = document, chapter = saved, durationMs = 0, positionMs = 0, error = null,
+            bookmarks = readBookmarks(document.id), showBookmarks = false,
             status = openedMessage(document.title, document.chapters.size, saved, heard)) }
     }
 
@@ -392,6 +398,69 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             else "$label spricht ab jetzt, was die Figuren sagen. Das Vorlesen beginnt beim nächsten Start neu.") }
     }
 
+    /**
+     * Remembers the place being listened to.
+     *
+     * The three numbers are the ones the resume position uses, so coming back to a bookmark is the same
+     * machinery as continuing after the app was closed, down to what happens when the voice has changed since.
+     */
+    fun mark() {
+        val s = state.value
+        val player = this.player
+        val item = player?.currentMediaItemIndex ?: 0
+        val offset = player?.currentPosition ?: 0
+        val title = s.document.chapters.getOrNull(s.chapter)?.title.orEmpty()
+        val bookmark = Bookmark(chapter = s.chapter, item = item, offsetMs = offset, positionMs = s.positionMs,
+            voiceId = cast(s).key, label = bookmarkLabel(title, s.positionMs), createdAt = System.currentTimeMillis())
+        val updated = addBookmark(s.bookmarks, bookmark)
+        storeBookmarks(s.document.id, updated)
+        mutable.update { it.copy(bookmarks = updated, status = bookmarkSetAnnouncement(bookmark.label)) }
+    }
+
+    fun bookmarks(open: Boolean) = mutable.update { it.copy(showBookmarks = open) }
+
+    /** Goes back to a bookmark by handing it to the resume position and starting the section again. */
+    fun goToBookmark(bookmark: Bookmark) {
+        val s = state.value
+        if (s.busy) return
+        stopPreparation()
+        pause(); player?.clearMediaItems(); preparedKey = null; durations = emptyList()
+        prefs.edit()
+            .putInt("${s.document.id}.chapter", bookmark.chapter)
+            .putInt("${s.document.id}.item", bookmark.item)
+            .putLong("${s.document.id}.offset", bookmark.offsetMs)
+            .putString("${s.document.id}.voice", bookmark.voiceId)
+            .putBoolean("${s.document.id}.finished", false)
+            .apply()
+        mutable.update { it.copy(chapter = bookmark.chapter.coerceIn(s.document.chapters.indices),
+            showBookmarks = false, positionMs = 0, durationMs = 0, status = "Weiter bei ${bookmark.label}.") }
+        play(quiet = true)
+    }
+
+    fun removeBookmark(bookmark: Bookmark) {
+        val updated = state.value.bookmarks.filterNot { it.createdAt == bookmark.createdAt }
+        storeBookmarks(state.value.document.id, updated)
+        mutable.update { it.copy(bookmarks = updated, status = "Lesezeichen entfernt: ${bookmark.label}.") }
+    }
+
+    private fun storeBookmarks(documentId: String, list: List<Bookmark>) {
+        val array = JSONArray()
+        for (b in list) array.put(JSONObject().apply {
+            put("chapter", b.chapter); put("item", b.item); put("offset", b.offsetMs)
+            put("position", b.positionMs); put("voice", b.voiceId); put("label", b.label); put("created", b.createdAt)
+        })
+        prefs.edit().putString("$documentId.bookmarks", array.toString()).apply()
+    }
+
+    private fun readBookmarks(documentId: String): List<Bookmark> = runCatching {
+        val array = JSONArray(prefs.getString("$documentId.bookmarks", "[]"))
+        (0 until array.length()).map { index ->
+            val o = array.getJSONObject(index)
+            Bookmark(o.getInt("chapter"), o.getInt("item"), o.getLong("offset"), o.getLong("position"),
+                o.optString("voice"), o.optString("label"), o.getLong("created"))
+        }
+    }.getOrDefault(emptyList())
+
     fun library(open: Boolean) {
         mutable.update { it.copy(showLibrary = open) }
         if (open) refreshLibrary()
@@ -578,6 +647,8 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
             ReaderCommand.Contents -> contents(true)
             ReaderCommand.Library -> library(true)
             ReaderCommand.Position -> announcePosition()
+            ReaderCommand.Mark -> mark()
+            ReaderCommand.Bookmarks -> bookmarks(true)
             is ReaderCommand.Seek -> seek(command.seconds)
             is ReaderCommand.GoTo -> if (command.chapter in 1..state.value.document.chapters.size) chapter(command.chapter - 1) else showError("Diesen Abschnitt gibt es nicht.")
             null -> showError("Befehl nicht erkannt: $text. Beispiele: Vorlesen, Pause, 30 Sekunden zurück, nächstes Kapitel.")

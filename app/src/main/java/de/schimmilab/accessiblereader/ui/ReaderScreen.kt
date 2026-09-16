@@ -1,5 +1,6 @@
 package de.schimmilab.accessiblereader.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,7 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.schimmilab.accessiblereader.ReaderState
 import de.schimmilab.accessiblereader.ReaderViewModel
+import de.schimmilab.accessiblereader.core.NO_BOOKMARKS
 import de.schimmilab.accessiblereader.core.OnlineVoicePolicy
+import de.schimmilab.accessiblereader.core.bookmarksHeading
 import de.schimmilab.accessiblereader.core.SPEED_MAX
 import de.schimmilab.accessiblereader.core.SPEED_MIN
 import de.schimmilab.accessiblereader.core.speedLabel
@@ -119,6 +122,16 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                     }
                     OutlinedButton(onClick = { model.contents(true) }, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Inhaltsverzeichnis") }
                     OutlinedButton(onClick = model::announcePosition, enabled = !s.busy && !s.listening, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) { Text("Wo bin ich? Position vorlesen") }
+                    // Two separate buttons on purpose: marking a place is done while listening and must not go
+                    // through a list first, and the list must not be reachable only by marking something.
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = model::mark, enabled = !s.busy && !s.listening,
+                            modifier = Modifier.weight(1f).heightIn(min = 56.dp)) { Text("Stelle merken") }
+                        OutlinedButton(onClick = { model.bookmarks(true) }, enabled = !s.listening,
+                            modifier = Modifier.weight(1f).heightIn(min = 56.dp)) {
+                            Text(bookmarksHeading(s.bookmarks.size))
+                        }
+                    }
                 }
             }
             item {
@@ -171,6 +184,26 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
                 }
             }
         }, confirmButton = { TextButton(onClick = { model.contents(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
+    if (s.showBookmarks) AlertDialog(onDismissRequest = { model.bookmarks(false) },
+        title = { Text(bookmarksHeading(s.bookmarks.size)) },
+        text = {
+            if (s.bookmarks.isEmpty()) Text(NO_BOOKMARKS)
+            else LazyColumn(Modifier.heightIn(max = 450.dp)) {
+                itemsIndexed(s.bookmarks) { _, bookmark ->
+                    // Going there and deleting are separate focus targets; nesting them would trap TalkBack.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.weight(1f).heightIn(min = 64.dp)
+                            .clickable(enabled = !s.busy && !s.listening) { model.goToBookmark(bookmark) }
+                            .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(bookmark.label, Modifier.padding(start = 8.dp))
+                        }
+                        TextButton(onClick = { model.removeBookmark(bookmark) }, enabled = !s.busy && !s.listening,
+                            modifier = Modifier.heightIn(min = 56.dp)
+                                .semantics { contentDescription = "Lesezeichen ${bookmark.label} entfernen" }) { Text("Entfernen") }
+                    }
+                }
+            }
+        }, confirmButton = { TextButton(onClick = { model.bookmarks(false) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Schließen") } })
     if (s.showLibrary) AlertDialog(onDismissRequest = { model.library(false) }, title = { Text("Bibliothek") },
         text = {
             if (s.library.isEmpty()) Text("Noch keine PDFs importiert. Über „PDF öffnen“ kommt dein erstes Dokument hierher.")
@@ -304,7 +337,7 @@ fun ReaderScreen(s: ReaderState, model: ReaderViewModel, onOpen: () -> Unit, onP
         var input by remember { mutableStateOf("") }
         AlertDialog(onDismissRequest = { commandHelp = false }, title = { Text("Sprachbefehle") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Vorlesen · Pause · 30 Sekunden zurück · 30 Sekunden vor · nächstes Kapitel · vorheriges Kapitel · Inhaltsverzeichnis · Bibliothek · wo bin ich · Kapitel 2")
+                Text("Vorlesen · Pause · 30 Sekunden zurück · 30 Sekunden vor · nächstes Kapitel · vorheriges Kapitel · Inhaltsverzeichnis · Bibliothek · wo bin ich · Stelle merken · Lesezeichen · Kapitel 2")
                 Text("Zum Testen lässt sich ein Befehl auch eingeben.")
                 OutlinedTextField(value = input, onValueChange = { input = it }, label = { Text("Befehl eingeben") })
             }

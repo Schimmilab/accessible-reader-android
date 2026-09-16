@@ -131,6 +131,17 @@ Du kannst pausieren, die App schließen und später weiterhören. Beim nächsten
 
 Wenn du die Stimme wechselst, geht die Sekunde verloren, bei der du warst, denn in einer anderen Stimme liegt an derselben Sekunde ein anderes Wort. Der Reader beginnt deshalb das gerade laufende Stück noch einmal von vorn. Du hörst höchstens etwa eine Minute zweimal, nicht den ganzen Abschnitt.
 
+## Eine Stelle merken
+
+Unter „Wo bin ich?" stehen zwei Tasten nebeneinander.
+
+- **Stelle merken** merkt sich, wo du gerade bist. Der Reader sagt dir sofort, was er sich gemerkt hat, zum Beispiel „Lesezeichen gesetzt: Kapitel 3, Minute 12."
+- **Lesezeichen** öffnet die Liste. Jeder Eintrag sagt Abschnitt und Minute; tippst du ihn an, geht es dort weiter. Daneben steht für jeden Eintrag eine Taste „Entfernen".
+
+Beides geht auch per Sprache: „Stelle merken" und „Lesezeichen".
+
+Zwanzig Lesezeichen je Buch werden behalten, das älteste fällt danach heraus. Drückst du zweimal an derselben Stelle, bleibt es ein Lesezeichen — der Reader weiß, dass du dir nur nicht sicher warst, ob es geklappt hat.
+
 ## Zwei Stimmen für einen Roman
 
 Im Dialog „Stimme und Einstellungen" steht unter der Stimmenliste der Punkt „Zweite Stimme für Gespräche".
