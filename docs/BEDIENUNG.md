@@ -131,6 +131,16 @@ Du kannst pausieren, die App schließen und später weiterhören. Beim nächsten
 
 Wenn du die Stimme wechselst, geht die Sekunde verloren, bei der du warst, denn in einer anderen Stimme liegt an derselben Sekunde ein anderes Wort. Der Reader beginnt deshalb das gerade laufende Stück noch einmal von vorn. Du hörst höchstens etwa eine Minute zweimal, nicht den ganzen Abschnitt.
 
+## Wo bin ich?
+
+Die Taste „Wo bin ich? Position vorlesen" sagt dir jetzt drei Dinge:
+
+- welcher Abschnitt und wie weit du darin bist
+- wie weit du im ganzen Buch bist, in Worten statt in Zahlen: „Du hast etwa ein Drittel des Buches gehört."
+- und, sobald der Reader deine Stimme einmal ausgemessen hat, wie lange es ungefähr noch dauert: „Noch etwa 3 Stunden und 20 Minuten."
+
+Die Restzeit ist eine Schätzung und wird als solche gesagt. Solange der Reader die Stimme noch nicht gemessen hat, sagt er dazu lieber gar nichts, statt sich etwas auszudenken.
+
 ## Im Buch suchen
 
 Unter dem Inhaltsverzeichnis steht die Taste **Im Buch suchen**.

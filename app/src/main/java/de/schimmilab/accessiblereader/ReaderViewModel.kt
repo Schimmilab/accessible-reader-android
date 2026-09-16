@@ -666,7 +666,26 @@ class ReaderViewModel(application: Application) : AndroidViewModel(application) 
     }
     fun positionText(): String {
         val s = state.value
-        return "${s.document.chapters[s.chapter].title}, Abschnitt ${s.chapter + 1} von ${s.document.chapters.size}. ${s.positionMs / 60000} Minuten und ${(s.positionMs / 1000) % 60} Sekunden."
+        val here = "${s.document.chapters[s.chapter].title}, Abschnitt ${s.chapter + 1} von ${s.document.chapters.size}. " +
+            "${s.positionMs / 60000} Minuten und ${(s.positionMs / 1000) % 60} Sekunden."
+        // Where in the whole book, which a listener has no other way of telling: there is no scroll bar to feel
+        // and no thumb in the pages. Counted in characters, because sections differ in length by a lot.
+        val before = s.document.chapters.take(s.chapter).sumOf { it.text.length }
+        val section = s.document.chapters[s.chapter].text.length
+        val intoSection = if (s.durationMs > 0) (s.positionMs.toFloat() / s.durationMs) else 0f
+        val total = s.document.chapters.sumOf { it.text.length }
+        if (total <= 0) return here
+        val heard = before + section * intoSection.coerceIn(0f, 1f)
+        val left = (total - heard).toInt()
+        val remaining = remainingTimeLabel(left, measuredWordsPerMinute(s.voiceId))
+        return listOfNotNull(here, bookProgressLabel(heard / total), remaining).joinToString(" ")
+    }
+
+    /** What was measured about this voice while it was reading, or zero while nothing has been. */
+    private fun measuredWordsPerMinute(voiceId: String): Int {
+        val audio = prefs.getLong("speed.$voiceId.audio", 0)
+        if (audio <= 0) return 0
+        return wordsPerMinute(prefs.getLong("speed.$voiceId.chars", 0).toInt(), audio)
     }
     /** With TalkBack running the live region already speaks the status; the book voice would double every announcement. */
     private fun screenReaderActive(): Boolean =

@@ -106,6 +106,47 @@ fun wordsPerMinute(characters: Int, audioMs: Long): Int {
 }
 
 /**
+ * How far into the book someone is, in words rather than in a number they have to picture.
+ *
+ * A listener has no scroll bar and no thumb in the pages. "Abschnitt 3 von 15" says nothing about how much book
+ * is left when the sections differ in length, which they do, so this counts characters and rounds hard: nobody
+ * needs to hear a percentage to the digit, and a false precision would only sound like the app knows more than
+ * it does.
+ */
+fun bookProgressLabel(fraction: Float): String {
+    val percent = (fraction.coerceIn(0f, 1f) * 100).toInt()
+    val how = when {
+        percent < 3 -> return "Du bist ganz am Anfang des Buches."
+        percent > 97 -> return "Du bist fast am Ende des Buches."
+        percent in 23..27 -> "ein Viertel"
+        percent in 31..35 -> "ein Drittel"
+        percent in 48..52 -> "die Hälfte"
+        percent in 64..69 -> "zwei Drittel"
+        percent in 73..77 -> "drei Viertel"
+        else -> "${(percent / 5) * 5} Prozent"
+    }
+    return "Du hast etwa $how des Buches gehört."
+}
+
+/**
+ * Roughly how much listening is left, or null while the app has not yet measured how fast this voice speaks.
+ *
+ * An estimate is worth having here — "noch etwa drei Stunden" is what someone decides an evening by — but only
+ * an honest one, so it is named as an estimate, rounded to half hours above an hour, and left out entirely
+ * rather than guessed at a rate nobody has measured.
+ */
+fun remainingTimeLabel(charactersLeft: Int, wordsPerMinute: Int): String? {
+    if (charactersLeft <= 0 || wordsPerMinute <= 0) return null
+    val minutes = (charactersLeft / 6.5 / wordsPerMinute).toInt()
+    if (minutes < 1) return null
+    if (minutes < 60) return "Noch etwa $minutes Minuten."
+    val hours = minutes / 60
+    val rest = ((minutes % 60) / 5) * 5      // rounded to five: the estimate is not worth a single minute
+    val hoursSaid = if (hours == 1) "eine Stunde" else "$hours Stunden"
+    return if (rest == 0) "Noch etwa $hoursSaid." else "Noch etwa $hoursSaid und $rest Minuten."
+}
+
+/**
  * What to tell a listener about a voice, once the app has measured it while reading.
  *
  * Two things matter and neither can be heard from a short sample. How fast it speaks: measured on one emulator,
